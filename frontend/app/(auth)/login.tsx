@@ -37,7 +37,6 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
 
-      {/* Email */}
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -46,7 +45,6 @@ export default function LoginScreen() {
         onChangeText={setEmail}
       />
 
-      {/* Password */}
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -56,15 +54,12 @@ export default function LoginScreen() {
         onChangeText={setPassword}
       />
 
-      {/* Error */}
       {errorMsg !== "" && <Text style={styles.error}>{errorMsg}</Text>}
 
-      {/* Login Button */}
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login</Text>}
       </TouchableOpacity>
 
-      {/* Move to register */}
       <Link href="/(auth)/register" style={styles.link}>
         Don&apos;t have an account? Register
       </Link>
@@ -90,6 +85,7 @@ const styles = StyleSheet.create({
     borderColor: "#ccc",
     borderRadius: 8,
     marginBottom: 12,
+    color: "#fff",
   },
   button: {
     width: "100%",

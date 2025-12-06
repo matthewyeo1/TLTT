@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet } from "react-native";
+import { View, Text, TextInput, Button, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { BASE_URL } from "../../constants/api";
+import { registerUser } from "../../services/authServices";
+
+export const screenOptions = {
+  headerShown: false,
+};
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -13,26 +18,31 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     setError("");
+    console.log("Register request body:", { name, email, password }); // debug
 
     try {
-      const res = await fetch(`${BASE_URL}/auth/register`, {
+        const res = await fetch(`${BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
-      });
+        });
 
-      const data = await res.json();
+        console.log("Register response status:", res.status);
 
-      if (!res.ok) {
+        const data = await res.json();
+        console.log("Register response data:", data);
+
+        if (!res.ok) {
         setError(data.error || "Registration failed");
         return;
-      }
+        }
 
-      router.replace("/(auth)/login");
-    } catch {
-      setError("Network error");
+        router.replace("/(auth)/login");
+    } catch (err: any) {
+        console.error("Register fetch error:", err);
+        setError("Network error: " + err.message);
     }
-  };
+ };
 
   return (
     <View style={styles.container}>
@@ -60,9 +70,48 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  input: { borderWidth: 1, padding: 12, marginVertical: 8 },
-  title: { fontSize: 24, fontWeight: "bold" },
-  link: { marginTop: 20, color: "blue" },
-  error: { color: "red", marginVertical: 10 },
+  container: {
+    flex: 1,
+    padding: 24,
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "600",
+    marginBottom: 24,
+  },
+  input: {
+    width: "100%",
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    marginBottom: 12,
+    color: "#fff",
+  },
+  button: {
+    width: "100%",
+    backgroundColor: "#007bff",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  error: {
+    color: "red",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  link: {
+    marginTop: 8,
+    color: "#007bff",
+    textAlign: "center",
+    fontSize: 14,
+  },
 });
