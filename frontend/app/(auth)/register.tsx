@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { View, Text, TextInput, Button, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { Link, useRouter } from "expo-router";
-import { BASE_URL } from "../../constants/api";
 import { registerUser } from "../../services/authServices";
 
 export const screenOptions = {
@@ -18,23 +17,16 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     setError("");
-    console.log("Register request body:", { name, email, password }); // debug
+    console.log("Register request body:", { name, email, password }); 
 
     try {
-        const res = await fetch(`${BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-        });
+        const res = await registerUser(name, email, password);
 
         console.log("Register response status:", res.status);
 
-        const data = await res.json();
-        console.log("Register response data:", data);
-
         if (!res.ok) {
-        setError(data.error || "Registration failed");
-        return;
+            setError(res.error || "Registration failed");
+            return;
         }
 
         router.replace("/(auth)/login");
