@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { loginUser } from "../../services/authServices";
+import { sharedStyles } from "../styles/shared_styles";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,10 +28,9 @@ export default function LoginScreen() {
       return;
     }
 
-    // TODO: store token with SecureStore later
     console.log("TOKEN:", result.data?.token);
 
-    router.replace("../(tabs)/"); // go to home tabs
+    router.replace("../(tabs)/menu"); 
   };
 
   return (
@@ -68,48 +68,8 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "600",
-    marginBottom: 24,
-  },
+  ...sharedStyles,
   input: {
-    width: "100%",
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    marginBottom: 12,
-    color: "#fff",
-  },
-  button: {
-    width: "100%",
-    backgroundColor: "#007bff",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 6,
-    marginBottom: 12,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  error: {
-    color: "red",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  link: {
-    marginTop: 8,
-    color: "#007bff",
-    textAlign: "center",
-    fontSize: 14,
+    ...sharedStyles.input,
   },
 });
