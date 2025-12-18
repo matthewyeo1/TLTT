@@ -1,4 +1,3 @@
-// services/authService.ts
 import { BASE_URL } from "../constants/api";
 
 type ApiResult<T> = {
@@ -22,6 +21,7 @@ async function safeJson(res: Response) {
   }
 }
 
+// Send registration request to backend
 export async function registerUser(name: string, email: string, password: string): Promise<ApiResult<any>> {
   try {
     const res = await fetch(`${BASE_URL}/auth/register`, {
@@ -41,6 +41,7 @@ export async function registerUser(name: string, email: string, password: string
   }
 }
 
+// Send login request to backend
 export async function loginUser(email: string, password: string): Promise<ApiResult<any>> {
   try {
     const res = await fetch(`${BASE_URL}/auth/login`, {
