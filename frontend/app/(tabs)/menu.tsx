@@ -8,7 +8,7 @@ export default function MenuScreen() {
       <Text style={styles.title}>Welcome 👋</Text>
       <Text style={styles.subtitle}>What would you like to do?</Text>
 
-      <Pressable style={styles.button} /*onPress={() => router.push("/activity")}*/>
+      <Pressable style={styles.button} onPress={() => router.push("/activity")}>
         <Text style={styles.buttonText}>Activity</Text>
       </Pressable>
 
