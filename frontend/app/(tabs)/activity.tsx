@@ -5,10 +5,12 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  TouchableOpacity,
+  TouchableOpacity
 } from "react-native";
 import { useRouter } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
+import { getToken } from "../../utils/token";
+import * as Linking from "expo-linking";
 
 type Offer = {
   id: string;
@@ -19,27 +21,9 @@ type Offer = {
 };
 
 const SAMPLE_OFFERS: Offer[] = [
-  {
-    id: "1",
-    sender: "recruiter@companyA.com",
-    subject: "Internship offer - Software Engineer Intern",
-    date: "2025-06-01",
-    status: "pending",
-  },
-  {
-    id: "2",
-    sender: "hr@companyB.com",
-    subject: "Internship decision - UX Intern",
-    date: "2025-05-18",
-    status: "rejected",
-  },
-  {
-    id: "3",
-    sender: "talent@companyC.com",
-    subject: "Offer: Backend Intern",
-    date: "2025-05-25",
-    status: "accepted",
-  },
+  { id: "1", sender: "recruiter@companyA.com", subject: "Internship offer - Software Engineer Intern", date: "2025-06-01", status: "pending" },
+  { id: "2", sender: "hr@companyB.com", subject: "Internship decision - UX Intern", date: "2025-05-18", status: "rejected" },
+  { id: "3", sender: "talent@companyC.com", subject: "Offer: Backend Intern", date: "2025-05-25", status: "accepted" },
 ];
 
 const STATUS_ORDER: (Offer["status"] | "all")[] = ["all", "pending", "accepted", "rejected"];
@@ -55,21 +39,10 @@ export default function ActivityScreen() {
     s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : "#ffc107";
 
   const renderItem = ({ item }: { item: Offer }) => (
-    <Pressable
-      style={styles.card}
-
-      /*
-      onPress={() => {
-        // TODO: navigate to details / open email view
-        router.push(`/(tabs)/activity/${item.id}`);
-      }}
-      */
-    >
+    <Pressable style={styles.card}>
       <View style={styles.row}>
         <View style={styles.info}>
-          <Text style={styles.subject} numberOfLines={2}>
-            {item.subject}
-          </Text>
+          <Text style={styles.subject} numberOfLines={2}>{item.subject}</Text>
           <Text style={styles.sender}>{item.sender}</Text>
         </View>
         <View style={styles.meta}>
@@ -82,28 +55,34 @@ export default function ActivityScreen() {
     </Pressable>
   );
 
+  const connectGmail = async () => {
+    try {
+        const token = await getToken(); // or however you store it
+
+        const url = `https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google?token=${token}`;
+        Linking.openURL(url); // opens the browser for Google OAuth
+    } catch (err) {
+        console.error(err);
+    }
+    };
+
+
   return (
     <View style={styles.container}>
       <Text style={styles.subtitle}>Internship-related messages and offers</Text>
+
+      <TouchableOpacity style={[styles.button, { marginBottom: 12 }]} onPress={connectGmail}>
+        <Text style={styles.buttonText}>Connect Gmail</Text>
+      </TouchableOpacity>
 
       <View style={styles.filterRow}>
         {STATUS_ORDER.map((s) => (
           <TouchableOpacity
             key={s}
-            style={[
-              styles.filterButton,
-              filter === s && styles.filterButtonActive,
-            ]}
+            style={[styles.filterButton, filter === s && styles.filterButtonActive]}
             onPress={() => setFilter(s as any)}
           >
-            <Text
-              style={[
-                styles.filterText,
-                filter === s && styles.filterTextActive,
-              ]}
-            >
-              {s.toUpperCase()}
-            </Text>
+            <Text style={[styles.filterText, filter === s && styles.filterTextActive]}>{s.toUpperCase()}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -115,11 +94,8 @@ export default function ActivityScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>No messages</Text>}
       />
-      {/* Back to Menu button */}
-      <Pressable
-        style={[styles.button, styles.backButton]}
-        onPress={() => router.replace("/(tabs)/menu")}
-      >
+
+      <Pressable style={[styles.button, styles.backButton]} onPress={() => router.replace("/(tabs)/menu")}>
         <Text style={styles.buttonText}>Back to Menu</Text>
       </Pressable>
     </View>

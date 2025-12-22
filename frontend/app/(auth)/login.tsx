@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { loginUser } from "../../services/authServices";
+import { storeToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
 
 export default function LoginScreen() {
@@ -28,7 +29,9 @@ export default function LoginScreen() {
       return;
     }
 
-    console.log("TOKEN:", result.data?.token);
+    if (result.data?.token) {
+        await storeToken(result.data.token); 
+    }
 
     router.replace("../(tabs)/menu"); 
   };
