@@ -12,6 +12,28 @@ const oauth2Client = new google.auth.OAuth2(
   'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback'
 );
 
+// Token refresh listener
+oauth2Client.on('tokens', async (tokens) => {
+  try {
+    if (!tokens.access_token) return;
+
+    await User.findOneAndUpdate(
+      { 'gmail.refreshToken': tokens.refresh_token || oauth2Client.credentials.refresh_token },
+      {
+        $set: {
+          'gmail.accessToken': tokens.access_token,
+          'gmail.expiryDate': tokens.expiry_date,
+          ...(tokens.refresh_token && {
+            'gmail.refreshToken': tokens.refresh_token,
+          }),
+        },
+      }
+    );
+  } catch (err) {
+    console.error('Failed to persist refreshed Gmail tokens:', err);
+  }
+});
+
 router.get('/', (req, res) => {
   let token = req.headers['authorization']?.split(' ')[1] || req.query.token;
 
@@ -84,6 +106,9 @@ router.get('/gmail/top', authMiddleware, async (req, res) => {
       refresh_token: user.gmail.refreshToken,
       expiry_date: user.gmail.expiryDate,
     });
+
+    // Force token refresh if needed
+    await oauth2Client.getAccessToken();
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
