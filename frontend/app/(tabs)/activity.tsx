@@ -55,24 +55,33 @@ export default function ActivityScreen() {
     </Pressable>
   );
 
-  const connectGmail = async () => {
+  const fetchTopEmails = async () => {
     try {
-        const token = await getToken(); // or however you store it
+        const token = await getToken();
 
-        const url = `https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google?token=${token}`;
-        Linking.openURL(url); // opens the browser for Google OAuth
+        const res = await fetch(
+        'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/gmail/top',
+        {
+            headers: {
+            Authorization: `Bearer ${token}`,
+            },
+        }
+        );
+
+        const emails = await res.json();
+        console.log(emails); // render in UI
     } catch (err) {
         console.error(err);
     }
-    };
+ };
 
 
   return (
     <View style={styles.container}>
       <Text style={styles.subtitle}>Internship-related messages and offers</Text>
 
-      <TouchableOpacity style={[styles.button, { marginBottom: 12 }]} onPress={connectGmail}>
-        <Text style={styles.buttonText}>Connect Gmail</Text>
+      <TouchableOpacity style={[styles.button, { marginBottom: 12 }]} onPress={fetchTopEmails}>
+        <Text style={styles.buttonText}>Fetch Top Emails</Text>
       </TouchableOpacity>
 
       <View style={styles.filterRow}>

@@ -9,6 +9,7 @@ app.use(express.json());
 const authRoutes = require('./routes/auth');
 const googleRoutes = require('./routes/google');
 
+app.use('/', googleRoutes);
 app.use('/auth', authRoutes);
 app.use('/auth/google', googleRoutes);
 
