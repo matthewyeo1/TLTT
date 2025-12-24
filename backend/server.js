@@ -7,7 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 const authRoutes = require('./routes/auth');
+const googleRoutes = require('./routes/google');
+
+app.use('/', googleRoutes);
 app.use('/auth', authRoutes);
+app.use('/auth/google', googleRoutes);
 
 const PORT = process.env.PORT;
 
