@@ -8,10 +8,12 @@ app.use(cors());
 app.use(express.json());
 const authRoutes = require('./routes/auth');
 const googleRoutes = require('./routes/google');
+const emailRoutes = require('./routes/email');
 
 app.use('/', googleRoutes);
 app.use('/auth', authRoutes);
 app.use('/auth/google', googleRoutes);
+app.use('/email', emailRoutes);
 
 const PORT = process.env.PORT;
 

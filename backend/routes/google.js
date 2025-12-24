@@ -91,6 +91,7 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+/*
 router.get('/gmail/top', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -149,6 +150,7 @@ router.get('/gmail/top', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch emails' });
   }
 });
+*/
 
 
 module.exports = router;
