@@ -2,6 +2,7 @@ const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { processJobEmail } = require('../services/pipeline');
 
 const router = express.Router();
 
@@ -104,7 +105,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         metadataHeaders: ['Subject', 'From', 'Date'],
       });
 
-      const headers = msgRes.data.payload.headers;
+      const headers = msgRes.data.payload.headers || [];
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
       const from = headers.find(h => h.name === 'From')?.value || '';
       const date = headers.find(h => h.name === 'Date')?.value || '';
@@ -112,14 +113,18 @@ router.get('/job', authMiddleware, async (req, res) => {
 
       if (!isJobRelated(subject, snippet)) continue;
 
-      results.push({
+      // Pass to pipeline
+      const jobDetails = await processJobEmail(req.user.id, {
         id: msg.id,
         subject,
         sender: from,
         date,
         snippet,
-        status: 'pending',
-      });
+        });
+
+        if (jobDetails) {
+            results.push(jobDetails);
+        }
     }
 
     res.json(results);

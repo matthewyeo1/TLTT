@@ -100,7 +100,9 @@ export default function ActivityScreen() {
             ) : (
                 <FlatList
                     data={emails}
-                    keyExtractor={(i) => i.id}
+                    keyExtractor={(item, index) =>
+                        item.id ? item.id : `fallback-${index}`
+                    }
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     refreshing={refreshing}
