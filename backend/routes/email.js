@@ -20,6 +20,8 @@ const POSITIVE_KEYWORDS = [
   'unfortunately',
   'regret to inform',
   'next steps',
+  'not to move forward',
+  'after careful consideration',
 ];
 
 const NEGATIVE_KEYWORDS = [
@@ -76,7 +78,7 @@ router.get('/job', authMiddleware, async (req, res) => {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // Gmail query with LinkedIn/Indeed exclusions
+    // Query structure
     const listRes = await gmail.users.messages.list({
       userId: 'me',
       maxResults: 100,
@@ -93,19 +95,29 @@ router.get('/job', authMiddleware, async (req, res) => {
     });
 
     const messages = listRes.data.messages || [];
-    const results = [];
+    if (messages.length === 0) {
+      return res.json([]);
+    }
 
-    for (const msg of messages) {
-      if (results.length >= 20) break;
+    // Step 2: Fetch metadata in parallel
+    const metadataResponses = await Promise.all(
+      messages.map(msg =>
+        gmail.users.messages.get({
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['Subject', 'From', 'Date'],
+        })
+      )
+    );
 
-      const msgRes = await gmail.users.messages.get({
-        userId: 'me',
-        id: msg.id,
-        format: 'metadata',
-        metadataHeaders: ['Subject', 'From', 'Date'],
-      });
+    // Step 3: Filter + prepare candidates
+    const candidates = [];
 
-      const headers = msgRes.data.payload.headers || [];
+    for (const msgRes of metadataResponses) {
+      if (candidates.length >= 20) break;
+
+      const headers = msgRes.data.payload?.headers || [];
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
       const from = headers.find(h => h.name === 'From')?.value || '';
       const date = headers.find(h => h.name === 'Date')?.value || '';
@@ -113,19 +125,24 @@ router.get('/job', authMiddleware, async (req, res) => {
 
       if (!isJobRelated(subject, snippet)) continue;
 
-      // Pass to pipeline
-      const jobDetails = await processJobEmail(req.user.id, {
-        id: msg.id,
+      candidates.push({
+        id: msgRes.data.id,
         subject,
         sender: from,
         date,
         snippet,
-        });
-
-        if (jobDetails) {
-            results.push(jobDetails);
-        }
+      });
     }
+
+    // Step 4: Process pipeline in parallel
+    const processed = await Promise.all(
+      candidates.map(email =>
+        processJobEmail(req.user.id, email)
+      )
+    );
+
+    // Step 5: Clean nulls
+    const results = processed.filter(Boolean);
 
     res.json(results);
   } catch (err) {

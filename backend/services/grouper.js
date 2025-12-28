@@ -10,9 +10,11 @@ function normalize(text) {
 }
 
 function makeKey(userId, company, role) {
+  const normalizedRole = role ? normalize(role) : 'unknown';
+  const normalizedCompany = company ? normalize(company) : 'unknown';
   return crypto
     .createHash('sha1')
-    .update(`${userId}:${company}:${role}`)
+    .update(`${userId}:${normalizedCompany}:${normalizedRole}`)
     .digest('hex');
 }
 
@@ -36,33 +38,35 @@ function extractRole(subject = '') {
   const cleaned = subject
     .replace(/your application at/i, '')
     .replace(/\[.*?\]/g, '')
-    .split(/–|-|@/)[1];
+    .split(/–|-|@/)[0];
 
   return cleaned ? normalize(cleaned) : null;
 }
 
 async function groupJobEmail(userId, email) {
-  // naive extraction (model replaces this later)
   const company = extractCompany(email.sender);
   const role = extractRole(email.subject);
-
   if (!company || !role) return null;
 
   const normalizedKey = makeKey(userId, company, role);
 
-  let job = await JobApplication.findOne({ normalizedKey });
-
-  if (!job) {
-    job = await JobApplication.create({
-      userId,
-      company,
-      role,
-      normalizedKey,
-      emails: [],
-    });
-  }
+  // Atomic upsert: find or create
+  const job = await JobApplication.findOneAndUpdate(
+    { normalizedKey },
+    {
+      $setOnInsert: {
+        userId,
+        company,
+        role,
+        emails: [],
+        status: 'pending',
+        lastUpdatedFromEmailAt: new Date(),
+      },
+    },
+    { new: true, upsert: true }
+  );
 
   return job;
 }
 
-module.exports = { groupJobEmail };
+module.exports = { groupJobEmail, makeKey, extractCompany, extractRole };

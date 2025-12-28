@@ -1,39 +1,50 @@
+const JobApplication = require('../models/JobApplication');
 const { classifyStatus } = require('./classifier');
-const { groupJobEmail } = require('./grouper');
+const { extractCompany, extractRole, makeKey } = require('./grouper');
 
 async function processJobEmail(userId, email) {
   const status = classifyStatus(email);
+  const company = extractCompany(email.sender);
+  const role = extractRole(email.subject);
 
-  const job = await groupJobEmail(userId, email);
-  if (!job) return null;
+  if (!company || !role) return null;
 
-  // Append email to DB
-  job.emails.push({
-    messageId: email.id,
-    subject: email.subject,
-    sender: email.sender,
-    snippet: email.snippet,
-    date: new Date(email.date),
-    inferredStatus: status,
-  });
+  const normalizedKey = makeKey(userId, company, role);
 
-  // Status escalation logic
-  if (status === 'accepted') job.status = 'accepted';
-  if (status === 'rejected' && job.status !== 'accepted') {
-    job.status = 'rejected';
-  }
+  // Keep only the latest email
+  const job = await JobApplication.findOneAndUpdate(
+    { normalizedKey },
+    {
+      $set: {
+        emails: [{
+          messageId: email.id,
+          subject: email.subject,
+          sender: email.sender,
+          snippet: email.snippet,
+          date: new Date(email.date),
+          inferredStatus: status,
+        }],
+        status: status,
+        lastUpdatedFromEmailAt: new Date(),
+      },
+      $setOnInsert: {
+        userId,
+        company,
+        role,
+        normalizedKey,
+      },
+    },
+    { new: true, upsert: true }
+  );
 
-  job.lastUpdatedFromEmailAt = new Date();
-
-  await job.save();
-
-  // Return a flat object for frontend consumption
   return {
-    id: email.id,               // Gmail message ID
+    id: email.id,
     subject: email.subject || '(No subject)',
     from: email.sender,
     date: email.date,
-    status: job.status || 'pending',
+    status: job.status,
+    company: job.company,
+    role: job.role,
   };
 }
 
