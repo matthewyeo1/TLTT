@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken } from "../../utils/token";
+import { clearEmailCache } from "../../services/emailCache";
 
 export default function MenuScreen() {
   return (
@@ -21,6 +22,7 @@ export default function MenuScreen() {
         style={[styles.button, styles.logoutButton]}
         onPress={async () => {
             await removeToken(); 
+            clearEmailCache();
             router.replace("/(auth)/login"); 
         }}
       >

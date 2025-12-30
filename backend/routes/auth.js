@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const authMiddleware = require('../middleware/auth');
 const loginLimiter = require('../middleware/loginLimiter');
@@ -76,6 +75,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   console.log('Login attempt with email:', email, 'and password type:', typeof password);
+  
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ error: 'Invalid email or password' });

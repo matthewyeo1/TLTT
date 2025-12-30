@@ -9,6 +9,11 @@ import {
 import { useRouter } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
 import { getToken } from "../../utils/token";
+import {
+    getCachedEmails,
+    setCachedEmails,
+    isCacheStale,
+} from "../../services/emailCache";
 
 type Email = {
     id: string;
@@ -24,8 +29,21 @@ export default function ActivityScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    // Add cache loading on mount
     useEffect(() => {
-        fetchJobRelatedEmails();
+        const loadEmails = async () => {
+            const cached = getCachedEmails();
+
+            if (cached && !isCacheStale()) {
+                setEmails(cached);
+                setLoading(false);
+                return;
+            }
+
+            await fetchJobRelatedEmails();
+        };
+
+        loadEmails();
     }, []);
 
     const fetchJobRelatedEmails = async (isRefresh = false) => {
@@ -54,6 +72,7 @@ export default function ActivityScreen() {
 
             const data = await res.json();
             setEmails(data);
+            setCachedEmails(data);
         } catch (err) {
             console.error("Failed to fetch emails:", err);
         } finally {
