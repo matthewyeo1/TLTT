@@ -7,119 +7,74 @@ const { extractBody } = require('../services/grouper');
 
 const router = express.Router();
 
-// Hard keyword filters (precision > recall)
+// Keywords to filter job-related emails
 const POSITIVE_KEYWORDS = [
-  'application',
-  'interview',
-  'offer',
-  'position',
-  'role',
-  'recruiter',
-  'hiring',
-  'assessment',
-  'shortlisted',
-  'unfortunately',
-  'regret to inform',
-  'next steps',
-  'not to move forward',
-  'after careful consideration',
+  'application','interview','offer','position','role','recruiter',
+  'hiring','assessment','shortlisted','unfortunately',
+  'regret to inform','next steps','not to move forward','after careful consideration'
 ];
-
 const NEGATIVE_KEYWORDS = [
-  'newsletter',
-  'unsubscribe',
-  'sale',
-  'discount',
-  'webinar',
-  'promotion',
-  'marketing',
-  'event reminder',
-  'is hiring',
-  'job alert',
-  'your application was sent to'
+  'newsletter','unsubscribe','sale','discount','webinar',
+  'promotion','marketing','event reminder','is hiring',
+  'job alert','your application was sent to'
 ];
 
 function isJobRelated(subject, snippet) {
   const text = `${subject} ${snippet}`.toLowerCase();
-
   if (NEGATIVE_KEYWORDS.some(w => text.includes(w))) return false;
   if (!POSITIVE_KEYWORDS.some(w => text.includes(w))) return false;
-
   return true;
 }
 
+// Utility to initialize Gmail client and refresh token if expired
+async function getGmailClient(user) {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+
+  oauth2Client.setCredentials({
+    access_token: user.gmail.accessToken,
+    refresh_token: user.gmail.refreshToken,
+    expiry_date: user.gmail.expiryDate,
+  });
+
+  // Refresh token if expired
+  if (!user.gmail.expiryDate || Date.now() >= user.gmail.expiryDate) {
+    const newToken = await oauth2Client.getAccessToken();
+    if (newToken?.token) {
+      user.gmail.accessToken = newToken.token;
+      await user.save();
+      oauth2Client.setCredentials({
+        ...oauth2Client.credentials,
+        access_token: newToken.token,
+      });
+    }
+  }
+
+  return google.gmail({ version: 'v1', auth: oauth2Client });
+}
+
+// GET /email/job – fetch list of job-related emails
 router.get('/job', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user?.gmail?.accessToken) {
-      return res.status(600).json({ error: 'Gmail not connected' });
-    }
+    if (!user?.gmail?.accessToken) return res.status(400).json({ error: 'Gmail not connected' });
 
-    // Initialize OAuth2 client with credentials
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback'
-    );
-
-    // Set user credentials
-    oauth2Client.setCredentials({
-      access_token: user.gmail.accessToken,
-      refresh_token: user.gmail.refreshToken,
-      expiry_date: user.gmail.expiryDate,
-    });
-
-    // Refresh token if expired
-    if (!user.gmail.expiryDate || Date.now() >= user.gmail.expiryDate) {
-      const newToken = await oauth2Client.getAccessToken();
-      if (newToken?.token) {
-        user.gmail.accessToken = newToken.token;
-        // optionally update expiryDate if returned
-        await user.save();
-      }
-    }
-
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-    // Query structure
-    const listRes = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 100,
-      q: `
-        (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
-        OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
-        -from:jobalerts-noreply@linkedin.com
-        -subject:"linkedin job alerts"
-        -from:invitationtoapply-sg@match.indeed.com
-        -category:promotions
-        -category:social
-        newer_than:60d
-      `,
-    });
-
+    const gmail = await getGmailClient(user);
+    const listRes = await gmail.users.messages.list({ userId: 'me', maxResults: 100 });
     const messages = listRes.data.messages || [];
-    if (messages.length === 0) {
-      return res.json([]);
-    }
 
-    // Step 2: Fetch metadata in parallel
     const metadataResponses = await Promise.all(
       messages.map(msg =>
-        gmail.users.messages.get({
-          userId: 'me',
-          id: msg.id,
-          format: 'metadata',
-          metadataHeaders: ['Subject', 'From', 'Date'],
-        })
+        gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata', metadataHeaders: ['Subject','From','Date'] })
       )
     );
 
-    // Step 3: Filter + prepare candidates
     const candidates = [];
-
     for (const msgRes of metadataResponses) {
       if (candidates.length >= 20) break;
-
       const headers = msgRes.data.payload?.headers || [];
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
       const from = headers.find(h => h.name === 'From')?.value || '';
@@ -127,26 +82,17 @@ router.get('/job', authMiddleware, async (req, res) => {
       const snippet = msgRes.data.snippet || '';
 
       if (!isJobRelated(subject, snippet)) continue;
-
       candidates.push({
         id: msgRes.data.id,
         subject,
-        sender: from,
+        from,
         date,
         snippet,
       });
     }
 
-    // Step 4: Process pipeline in parallel
-    const processed = await Promise.all(
-      candidates.map(email =>
-        processJobEmail(req.user.id, email)
-      )
-    );
-
-    // Step 5: Clean nulls
+    const processed = await Promise.all(candidates.map(email => processJobEmail(req.user.id, email)));
     const results = processed.filter(Boolean);
-
     res.json(results);
   } catch (err) {
     console.error('Job email fetch error:', err);
@@ -154,61 +100,27 @@ router.get('/job', authMiddleware, async (req, res) => {
   }
 });
 
-router.get("/:id", authMiddleware, async (req, res) => {
-  const { id } = req.params;
-
+// GET /email/:id – fetch individual email body
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
+    const { id } = req.params;
     const user = await User.findById(req.user.id);
-    if (!user?.gmail?.accessToken) {
-      return res.status(600).json({ error: "Gmail not connected" });
-    }
+    if (!user?.gmail?.accessToken) return res.status(400).json({ error: 'Gmail not connected' });
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      "https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback"
-    );
-
-    oauth2Client.setCredentials({
-      access_token: user.gmail.accessToken,
-      refresh_token: user.gmail.refreshToken,
-      expiry_date: user.gmail.expiryDate,
-    });
-
-    if (!user.gmail.expiryDate || Date.now() >= user.gmail.expiryDate) {
-      const newToken = await oauth2Client.getAccessToken();
-      if (newToken?.token) {
-        user.gmail.accessToken = newToken.token;
-        await user.save();
-      }
-    }
-
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
-    const msg = await gmail.users.messages.get({
-      userId: "me",
-      id,
-      format: "full",
-    });
+    const gmail = await getGmailClient(user);
+    const msg = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
 
     const payload = msg.data.payload;
     const headers = payload.headers.reduce((acc, h) => {
       acc[h.name.toLowerCase()] = h.value;
       return acc;
     }, {});
-
     const body = extractBody(payload);
 
-    res.json({
-      id,
-      from: headers.from || "",
-      subject: headers.subject || "",
-      date: headers.date || "",
-      body,
-    });
+    res.json({ id, from: headers.from, subject: headers.subject, date: headers.date, body });
   } catch (err) {
-    console.error("Failed to fetch email:", err);
-    res.status(500).json({ error: "Failed to fetch email" });
+    console.error('Failed to fetch email:', err);
+    res.status(500).json({ error: 'Failed to fetch email' });
   }
 });
 

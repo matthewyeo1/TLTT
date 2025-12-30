@@ -4,9 +4,11 @@ import {
     Text,
     ScrollView,
     StyleSheet,
+    Pressable
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { getToken } from "../../utils/token";
+import { sharedStyles } from "../styles/shared_styles";
 
 type EmailDetail = {
     id: string;
@@ -17,6 +19,7 @@ type EmailDetail = {
 };
 
 export default function EmailDetailScreen() {
+    const router = useRouter();
     const { id } = useLocalSearchParams<{ id: string }>();
     const [email, setEmail] = useState<EmailDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -59,30 +62,44 @@ export default function EmailDetailScreen() {
     }
 
     return (
-        <ScrollView style={styles.container}>
-            <Text style={styles.subject}>{email.subject}</Text>
-            <Text style={styles.meta}>From: {email.from}</Text>
-            <Text style={styles.meta}>Date: {email.date}</Text>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.subject}>{email.subject || "(No subject)"}</Text>
+        <Text style={styles.from}>From: {email.from}</Text>
+        <Text style={styles.date}>Date: {email.date}</Text>
 
-            <View style={styles.divider} />
+        <View style={styles.bodyContainer}>
+          <Text style={styles.body}>{email.body}</Text>
+        </View>
+      </ScrollView>
 
-            <Text style={styles.body}>{email.body}</Text>
-        </ScrollView>
-    );
+      <Pressable
+        style={styles.backButton}
+        onPress={() => router.back()}
+      >
+        <Text style={styles.backButtonText}>Back to Emails</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
     container: {
-        padding: 16,
+        padding: 50,
         backgroundColor: "#000",
         flex: 1,
+        paddingHorizontal: 16,
     },
+    bodyContainer: { marginTop: 12 },
+    scrollContent: { paddingTop: 24, paddingHorizontal: 4, paddingBottom: 80 },
     subject: {
         color: "#fff",
         fontSize: 18,
         fontWeight: "700",
         marginBottom: 8,
     },
+    from: { color: "gray", fontSize: 14, marginBottom: 4 },
+    date: { color: "gray", fontSize: 12, marginBottom: 16 },
     meta: {
         color: "gray",
         fontSize: 13,
@@ -103,4 +120,14 @@ const styles = StyleSheet.create({
         padding: 16,
         textAlign: "center",
     },
+    backButton: {
+        position: "absolute",
+        bottom: 24,
+        alignSelf: "center",
+        backgroundColor: "#222",
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 12,
+    },
+    backButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
 });

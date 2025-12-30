@@ -1,4 +1,5 @@
 import { BASE_URL } from "../constants/api";
+import { storeGmailTokens, GmailTokens } from "../utils/token";
 
 type ApiResult<T> = {
   ok: boolean;
@@ -54,6 +55,16 @@ export async function loginUser(email: string, password: string): Promise<ApiRes
     if (!res.ok) {
       return { ok: false, status: res.status, data: null, error: parsed?.error ?? String(parsed) ?? "Server error" };
     }
+
+    if (parsed?.gmailTokens) {
+      const tokens: GmailTokens = {
+        accessToken: parsed.gmailTokens.accessToken,
+        refreshToken: parsed.gmailTokens.refreshToken,
+        expiryDate: parsed.gmailTokens.expiryDate,
+      };
+      await storeGmailTokens(tokens);
+    }
+
     return { ok: true, status: res.status, data: parsed };
   } catch (err: any) {
     console.error("loginUser error:", err);
