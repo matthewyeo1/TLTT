@@ -49,7 +49,7 @@ router.get('/job', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user?.gmail?.accessToken) {
-      return res.status(400).json({ error: 'Gmail not connected' });
+      return res.status(600).json({ error: 'Gmail not connected' });
     }
 
     // Initialize OAuth2 client with credentials

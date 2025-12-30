@@ -4,6 +4,7 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const authMiddleware = require('../middleware/auth');
+const loginLimiter = require('../middleware/loginLimiter');
 
 // Protected route 
 router.get('/protected', authMiddleware, (req, res) => {
@@ -72,7 +73,7 @@ router.post('/register', async (req, res) => {
 });
 
 // User login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   console.log('Login attempt with email:', email, 'and password type:', typeof password);
   try {

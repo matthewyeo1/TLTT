@@ -53,7 +53,7 @@ router.get('/', (req, res) => {
     res.redirect(url);
   } catch (err) {
     console.error('JWT error:', err);
-    res.status(401).send('Invalid token');
+    res.status(402).send('Invalid token');
   }
 });
 
@@ -77,12 +77,10 @@ router.get('/callback', async (req, res) => {
         };
 
         if (tokens.refresh_token) {
-        update['gmail.refreshToken'] = tokens.refresh_token;
+            update['gmail.refreshToken'] = tokens.refresh_token;
         }
 
-        await User.findByIdAndUpdate(state, {
-        $set: update
-    });
+        await User.findByIdAndUpdate(state, { $set: update }, { new: true, upsert: true });
 
     res.send('Gmail connected successfully. You may close this window.');
   } catch (err) {
@@ -91,66 +89,15 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-/*
-router.get('/gmail/top', authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
+router.get('/link', authMiddleware, (req, res) => {
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',   
+    prompt: 'consent',        
+    scope: ['https://www.googleapis.com/auth/gmail.readonly'],
+    state: req.user.id        
+  });
 
-    const user = await User.findById(userId);
-
-    if (!user || !user.gmail || !user.gmail.accessToken) {
-      return res.status(401).json({ error: 'Google not connected' });
-    }
-
-    oauth2Client.setCredentials({
-      access_token: user.gmail.accessToken,
-      refresh_token: user.gmail.refreshToken,
-      expiry_date: user.gmail.expiryDate,
-    });
-
-    // Force token refresh if needed
-    await oauth2Client.getAccessToken();
-
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-    const list = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 3,
-      labelIds: ['INBOX'],
-    });
-
-    const messages = await Promise.all(
-      (list.data.messages || []).map(async (msg) => {
-        if (!msg.id) return null;
-
-        const detail = await gmail.users.messages.get({
-          userId: 'me',
-          id: msg.id,
-          format: 'metadata',
-          metadataHeaders: ['From', 'Subject', 'Date'],
-        });
-
-        const headers = detail.data.payload?.headers || [];
-
-        const getHeader = (name) =>
-          headers.find(h => h.name === name)?.value;
-
-        return {
-          id: msg.id,
-          from: getHeader('From'),
-          subject: getHeader('Subject'),
-          date: getHeader('Date'),
-        };
-      })
-    );
-
-    res.json(messages.filter(Boolean));
-  } catch (err) {
-    console.error('Gmail fetch error:', err);
-    res.status(500).json({ error: 'Failed to fetch emails' });
-  }
+  res.json({ url });
 });
-*/
-
 
 module.exports = router;

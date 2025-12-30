@@ -9,11 +9,13 @@ app.use(express.json());
 const authRoutes = require('./routes/auth');
 const googleRoutes = require('./routes/google');
 const emailRoutes = require('./routes/email');
+const userRoutes = require('./routes/user');
 
 app.use('/', googleRoutes);
 app.use('/auth', authRoutes);
 app.use('/auth/google', googleRoutes);
 app.use('/email', emailRoutes);
+app.use('/user', userRoutes);
 
 const PORT = process.env.PORT;
 
