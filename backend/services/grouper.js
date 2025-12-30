@@ -43,6 +43,24 @@ function extractRole(subject = '') {
   return cleaned ? normalize(cleaned) : null;
 }
 
+function extractBody(payload) {
+    if (!payload) return "";
+
+    if (payload.body?.data) {
+        return Buffer.from(payload.body.data, "base64").toString("utf-8");
+    }
+
+    if (payload.parts) {
+        for (const part of payload.parts) {
+            if (part.mimeType === "text/plain" && part.body?.data) {
+                return Buffer.from(part.body.data, "base64").toString("utf-8");
+            }
+        }
+    }
+
+    return "";
+}
+
 async function groupJobEmail(userId, email) {
   const company = extractCompany(email.sender);
   const role = extractRole(email.subject);
@@ -69,4 +87,4 @@ async function groupJobEmail(userId, email) {
   return job;
 }
 
-module.exports = { groupJobEmail, makeKey, extractCompany, extractRole };
+module.exports = { groupJobEmail, makeKey, extractCompany, extractRole, extractBody };

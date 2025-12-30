@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/pipeline');
+const { extractBody } = require('../services/grouper');
 
 const router = express.Router();
 
@@ -34,6 +35,8 @@ const NEGATIVE_KEYWORDS = [
   'marketing',
   'event reminder',
   'is hiring',
+  'job alert',
+  'your application was sent to'
 ];
 
 function isJobRelated(subject, snippet) {
@@ -148,6 +151,64 @@ router.get('/job', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Job email fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch job emails' });
+  }
+});
+
+router.get("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user?.gmail?.accessToken) {
+      return res.status(600).json({ error: "Gmail not connected" });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      "https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback"
+    );
+
+    oauth2Client.setCredentials({
+      access_token: user.gmail.accessToken,
+      refresh_token: user.gmail.refreshToken,
+      expiry_date: user.gmail.expiryDate,
+    });
+
+    if (!user.gmail.expiryDate || Date.now() >= user.gmail.expiryDate) {
+      const newToken = await oauth2Client.getAccessToken();
+      if (newToken?.token) {
+        user.gmail.accessToken = newToken.token;
+        await user.save();
+      }
+    }
+
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+    const msg = await gmail.users.messages.get({
+      userId: "me",
+      id,
+      format: "full",
+    });
+
+    const payload = msg.data.payload;
+    const headers = payload.headers.reduce((acc, h) => {
+      acc[h.name.toLowerCase()] = h.value;
+      return acc;
+    }, {});
+
+    const body = extractBody(payload);
+
+    res.json({
+      id,
+      from: headers.from || "",
+      subject: headers.subject || "",
+      date: headers.date || "",
+      body,
+    });
+  } catch (err) {
+    console.error("Failed to fetch email:", err);
+    res.status(500).json({ error: "Failed to fetch email" });
   }
 });
 

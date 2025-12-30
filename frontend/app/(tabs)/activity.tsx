@@ -84,8 +84,19 @@ export default function ActivityScreen() {
     const statusColor = (s: Email["status"]) =>
         s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : "#ffc107";
 
-    const renderItem = ({ item }: { item: Email }) => (
-        <View style={styles.card}>
+        const renderItem = ({ item }: { item: Email }) => (
+        <Pressable
+            onPress={() =>
+                router.push({
+                    pathname: "/email/[id]",
+                    params: { id: item.id },
+                })
+            }
+            style={({ pressed }) => [
+                styles.card,
+                pressed && { opacity: 0.7 },
+            ]}
+        >
             <Text style={styles.subject} numberOfLines={2}>
                 {item.subject || "(No subject)"}
             </Text>
@@ -105,7 +116,7 @@ export default function ActivityScreen() {
                     </Text>
                 </View>
             </View>
-        </View>
+        </Pressable>
     );
 
     return (
