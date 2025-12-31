@@ -19,6 +19,17 @@ function classifyStatus(email) {
     return 'accepted';
   }
 
+  if (
+    text.includes('interview') ||
+    text.includes('schedule') ||
+    text.includes('invite you to') ||
+    text.includes('call with') ||
+    text.includes('video call') ||
+    text.includes('phone screen')
+  ) {
+    return 'interview';
+  }
+
   return 'pending';
 }
 

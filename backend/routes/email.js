@@ -4,6 +4,7 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/pipeline');
 const { extractBody } = require('../services/grouper');
+const { cleanEmailBody } = require('../services/parser');
 
 const router = express.Router();
 
@@ -35,6 +36,8 @@ const NEGATIVE_KEYWORDS = [
   'marketing',
   'event reminder',
   'is hiring',
+  'your application was sent to',
+  'your application was viewed'
 ];
 
 function isJobRelated(subject, snippet) {
@@ -203,14 +206,21 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
     // Extract body
     const body = extractBody(payload);
+    cleanedBody = cleanEmailBody(body);
+
+    if (cleanedBody.length === 0) {
+      cleanedBody = "(No content available)";
+    }
 
     res.json({
       id,
       from: headers.from || '',
       subject: headers.subject || '',
       date: headers.date || '',
-      body,
+      body: cleanedBody,
     });
+
+    console.log("Body:", cleanedBody);
 
   } catch (err) {
     console.error('Failed to fetch email:', err);

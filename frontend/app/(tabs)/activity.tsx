@@ -5,6 +5,7 @@ import {
     FlatList,
     Pressable,
     StyleSheet,
+    ActivityIndicator
 } from "react-native";
 import { useRouter } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
@@ -20,7 +21,7 @@ type Email = {
     from: string;
     subject: string;
     date: string;
-    status: "pending" | "accepted" | "rejected";
+    status: "pending" | "accepted" | "rejected" | "interview";
 };
 
 export default function ActivityScreen() {
@@ -28,6 +29,7 @@ export default function ActivityScreen() {
     const [emails, setEmails] = useState<Email[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingEmailId, setLoadingEmailId] = useState<string | null>(null);
 
     // Add cache loading on mount
     useEffect(() => {
@@ -82,42 +84,60 @@ export default function ActivityScreen() {
     };
 
     const statusColor = (s: Email["status"]) =>
-        s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : "#ffc107";
+        s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : s === "interview" ? "#17a2b8" : "#ffc107";
 
-        const renderItem = ({ item }: { item: Email }) => (
-        <Pressable
-            onPress={() =>
-                router.push({
-                    pathname: "/email/[id]",
-                    params: { id: item.id },
-                })
-            }
-            style={({ pressed }) => [
-                styles.card,
-                pressed && { opacity: 0.7 },
-            ]}
-        >
-            <Text style={styles.subject} numberOfLines={2}>
-                {item.subject || "(No subject)"}
-            </Text>
+    const renderItem = ({ item }: { item: Email }) => {
+        const isLoading = loadingEmailId === item.id;
 
-            <Text style={styles.sender}>{item.from}</Text>
+        return (
+            <Pressable
+                onPress={async () => {
+                    setLoadingEmailId(item.id); // start loader
+                    try {
+                        router.push({
+                            pathname: "/email/[id]",
+                            params: { id: item.id },
+                        });
+                    } finally {
+                        setLoadingEmailId(null); // stop loader
+                    }
+                }}
+                style={({ pressed }) => [
+                    styles.card,
+                    pressed && { opacity: 0.7 },
+                ]}
+                disabled={isLoading} // prevent double press
+            >
+                {/* Card content */}
+                <Text style={styles.subject} numberOfLines={2}>
+                    {item.subject || "(No subject)"}
+                </Text>
 
-            <View style={styles.metaRow}>
-                <Text style={styles.date}>{formatDate(item.date)}</Text>
-                <View
-                    style={[
-                        styles.badge,
-                        { backgroundColor: statusColor(item.status) },
-                    ]}
-                >
-                    <Text style={styles.badgeText}>
-                        {(item.status ?? "pending").toUpperCase()}
-                    </Text>
+                <Text style={styles.sender}>{item.from}</Text>
+
+                <View style={styles.metaRow}>
+                    <Text style={styles.date}>{formatDate(item.date)}</Text>
+                    <View
+                        style={[
+                            styles.badge,
+                            { backgroundColor: statusColor(item.status) },
+                        ]}
+                    >
+                        <Text style={styles.badgeText}>
+                            {(item.status ?? "pending").toUpperCase()}
+                        </Text>
+                    </View>
                 </View>
-            </View>
-        </Pressable>
-    );
+
+                {/* Overlay loader matching refresh style */}
+                {isLoading && (
+                    <View style={styles.overlayLoader}>
+                        <ActivityIndicator size="small" color="#0d6efd" />
+                    </View>
+                )}
+            </Pressable>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -218,5 +238,12 @@ const styles = StyleSheet.create({
         color: "#000",
         fontWeight: "700",
         fontSize: 11,
+    },
+    overlayLoader: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 10,
     },
 });
