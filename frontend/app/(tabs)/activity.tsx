@@ -108,7 +108,6 @@ export default function ActivityScreen() {
                 ]}
                 disabled={isLoading} // prevent double press
             >
-                {/* Card content */}
                 <Text style={styles.subject} numberOfLines={2}>
                     {item.subject || "(No subject)"}
                 </Text>
@@ -129,7 +128,6 @@ export default function ActivityScreen() {
                     </View>
                 </View>
 
-                {/* Overlay loader matching refresh style */}
                 {isLoading && (
                     <View style={styles.overlayLoader}>
                         <ActivityIndicator size="small" color="#0d6efd" />
@@ -145,23 +143,26 @@ export default function ActivityScreen() {
                 Recent internship-related emails
             </Text>
 
-            {loading ? (
-                <Text style={styles.empty}>Loading emails…</Text>
-            ) : (
-                <FlatList
-                    data={emails}
-                    keyExtractor={(item, index) =>
-                        item.id ? item.id : `fallback-${index}`
-                    }
-                    renderItem={renderItem}
-                    contentContainerStyle={styles.list}
-                    refreshing={refreshing}
-                    onRefresh={() => fetchJobRelatedEmails(true)}
-                    ListEmptyComponent={
+            <FlatList
+                data={emails}
+                keyExtractor={(item, index) =>
+                    item.id ? item.id : `fallback-${index}`
+                }
+                renderItem={renderItem}
+                contentContainerStyle={[
+                    styles.list,
+                    emails.length === 0 && { flex: 1, justifyContent: 'center' },
+                ]}
+                refreshing={refreshing}
+                onRefresh={() => fetchJobRelatedEmails(true)}
+                ListEmptyComponent={
+                    loading ? (
+                        <Text style={styles.empty}>Loading emails…</Text>
+                    ) : (
                         <Text style={styles.empty}>No emails found</Text>
-                    }
-                />
-            )}
+                    )
+                }
+            />
 
             <Pressable
                 style={[styles.button, styles.backButton]}
@@ -171,6 +172,7 @@ export default function ActivityScreen() {
             </Pressable>
         </View>
     );
+
 }
 
 function formatDate(d: string) {
