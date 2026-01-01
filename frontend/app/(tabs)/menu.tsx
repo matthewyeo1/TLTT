@@ -1,6 +1,8 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
+import { removeToken } from "../../utils/token";
+import { clearEmailCache } from "../../services/emailCache";
 
 export default function MenuScreen() {
   return (
@@ -18,7 +20,11 @@ export default function MenuScreen() {
 
       <Pressable
         style={[styles.button, styles.logoutButton]}
-        onPress={() => router.replace("/(auth)/login")}
+        onPress={async () => {
+            await removeToken(); 
+            clearEmailCache();
+            router.replace("/(auth)/login"); 
+        }}
       >
         <Text style={styles.logoutText}>Logout</Text>
       </Pressable>

@@ -1,16 +1,16 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Linking } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { loginUser } from "../../services/authServices";
-import { storeToken } from "../../utils/token";
+import { storeToken, getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
+import { BASE_URL } from "../../constants/api";
 
 export default function LoginScreen() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -18,22 +18,55 @@ export default function LoginScreen() {
     setErrorMsg("");
     setLoading(true);
 
-    const result = await loginUser(email, password);
+    try {
+      const result = await loginUser(email, password);
+      console.log("Login result:", result);
 
-    console.log("Login result:", result);
+      if (!result.ok) {
+        setErrorMsg(result.error ?? "Login failed");
+        setLoading(false);
+        return;
+      }
 
-    setLoading(false);
+      const token = result.data?.token;
+      if (token) {
+        await storeToken(token);
 
-    if (!result.ok) {
-      setErrorMsg(result.error ?? "Login failed");
-      return;
+        // Check if Gmail is linked
+        const meRes = await fetch(`${BASE_URL}/user/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!meRes.ok) {
+          throw new Error(`Failed to fetch user info: ${meRes.status}`);
+        }
+
+        const userData = await meRes.json();
+
+        // If Gmail not linked, fetch Google OAuth URL
+        if (!userData.gmail?.accessToken) {
+          const googleRes = await fetch(`${BASE_URL}/auth/google/link`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!googleRes.ok) {
+            throw new Error(`Failed to fetch Google link URL: ${googleRes.status}`);
+          }
+
+          const { url } = await googleRes.json();
+          Linking.openURL(url); 
+          setLoading(false);
+          return; 
+        }
+      }
+
+      router.replace("../(tabs)/menu");
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setErrorMsg(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    if (result.data?.token) {
-        await storeToken(result.data.token); 
-    }
-
-    router.replace("../(tabs)/menu"); 
   };
 
   return (
