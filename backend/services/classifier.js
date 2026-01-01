@@ -1,3 +1,15 @@
+function isNoReply(sender) {
+    if (!sender) return false;
+
+    const s = sender.toLowerCase();
+    return (
+        s.includes('no-reply') ||
+        s.includes('noreply') ||
+        s.includes('do-not-reply') ||
+        s.includes('donotreply')
+    );
+}
+
 function classifyStatus(email) {
   const text = `${email.subject} ${email.snippet}`.toLowerCase();
 
@@ -33,4 +45,4 @@ function classifyStatus(email) {
   return 'pending';
 }
 
-module.exports = { classifyStatus };
+module.exports = { isNoReply, classifyStatus };

@@ -15,6 +15,7 @@ import {
     setCachedEmails,
     isCacheStale,
 } from "../../services/emailCache";
+import { MaterialIcons } from '@expo/vector-icons';
 
 type Email = {
     id: string;
@@ -22,6 +23,12 @@ type Email = {
     subject: string;
     date: string;
     status: "pending" | "accepted" | "rejected" | "interview";
+    autoReply?: {
+        eligible: boolean;
+        replied: boolean;
+        repliedAt?: string;
+        replyMessageId?: string;
+    };
 };
 
 export default function ActivityScreen() {
@@ -116,15 +123,30 @@ export default function ActivityScreen() {
 
                 <View style={styles.metaRow}>
                     <Text style={styles.date}>{formatDate(item.date)}</Text>
-                    <View
-                        style={[
-                            styles.badge,
-                            { backgroundColor: statusColor(item.status) },
-                        ]}
-                    >
-                        <Text style={styles.badgeText}>
-                            {(item.status ?? "pending").toUpperCase()}
-                        </Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        
+                        
+                        {item.autoReply?.replied === true && (
+                            <MaterialIcons
+                                name="mark-email-read"
+                                size={16}
+                                color="#7B61FF"
+                                marginRight={4}
+                                style={{ marginLeft: 6 }}
+                            />
+                        )}
+
+                        <View
+                            style={[
+                                styles.badge,
+                                { backgroundColor: statusColor(item.status) },
+                            ]}
+                        >
+                            <Text style={styles.badgeText}>
+                                {(item.status ?? "pending").toUpperCase()}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
