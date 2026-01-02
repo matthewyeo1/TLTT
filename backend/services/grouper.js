@@ -1,6 +1,47 @@
 const JobApplication = require('../models/JobApplication');
 const crypto = require('crypto');
 
+// Hard keyword filters (precision > recall)
+const POSITIVE_KEYWORDS = [
+    'application',
+    'interview',
+    'offer',
+    'position',
+    'role',
+    'recruiter',
+    'hiring',
+    'assessment',
+    'shortlisted',
+    'unfortunately',
+    'regret to inform',
+    'next steps',
+    'not to move forward',
+    'after careful consideration',
+];
+
+const NEGATIVE_KEYWORDS = [
+    'newsletter',
+    'unsubscribe',
+    'sale',
+    'discount',
+    'webinar',
+    'promotion',
+    'marketing',
+    'event reminder',
+    'is hiring',
+    'your application was sent to',
+    'your application was viewed',
+    'payment'
+];
+
+const BLACKLISTED_SENDERS = [
+  'customer.service@',
+  'no-reply@',
+  'donotreply@',
+  'support@',
+  'noreply@',
+];
+
 function normalize(text) {
     return text
         .toLowerCase()
@@ -94,4 +135,4 @@ async function groupJobEmail(userId, email) {
     return job;
 }
 
-module.exports = { groupJobEmail, makeKey, extractEmailAddress, extractCompany, extractRole, extractBody };
+module.exports = { groupJobEmail, makeKey, extractEmailAddress, extractCompany, extractRole, extractBody, POSITIVE_KEYWORDS, NEGATIVE_KEYWORDS, BLACKLISTED_SENDERS };
