@@ -3,7 +3,7 @@ const { isNoReply, classifyStatus } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('./AI/autoReplyQueue');
 
-async function processJobEmail(userId, email) {
+async function processJobEmail(userId, email, accessToken) {
   const status = classifyStatus(email);
   const company = extractCompany(email.sender);
   const role = extractRole(email.subject);
