@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { 
+    useEffect, 
+    useState,
+    useRef,
+    useCallback 
+} from "react";
 import {
     View,
     Text,
@@ -7,7 +12,7 @@ import {
     StyleSheet,
     ActivityIndicator
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
 import { getToken } from "../../utils/token";
 import {
@@ -35,7 +40,11 @@ export default function ActivityScreen() {
     const router = useRouter();
     const [emails, setEmails] = useState<Email[]>([]);
     const [loading, setLoading] = useState(true);
+
     const [refreshing, setRefreshing] = useState(false);
+    const isFetchingRef = useRef(false);
+    const [autoRefreshCount, setAutoRefreshCount] = useState(0);
+
     const [loadingEmailId, setLoadingEmailId] = useState<string | null>(null);
 
     // Add cache loading on mount
@@ -55,9 +64,26 @@ export default function ActivityScreen() {
         loadEmails();
     }, []);
 
-    const fetchJobRelatedEmails = async (isRefresh = false) => {
+    // Auto-refresh every 30 seconds
+    useFocusEffect(
+        useCallback(() => {
+            const interval = setInterval(() => {
+                fetchJobRelatedEmails();
+            }, 30000);
 
-        if (isRefresh) {
+            return () => clearInterval(interval);
+        }, [])
+    );
+
+    const fetchJobRelatedEmails = async (
+        source: "auto" | "manual" = "auto"
+    ) => {
+
+        if (isFetchingRef.current) return;
+        
+        isFetchingRef.current = true;
+
+        if (source === "manual") {
             setRefreshing(true);
         } else {
             setLoading(true);
@@ -82,9 +108,19 @@ export default function ActivityScreen() {
             const data = await res.json();
             setEmails(data);
             setCachedEmails(data);
+
+            if (source === "auto") {
+                setAutoRefreshCount((prev) => {
+                    const next = prev + 1;
+                    console.log(`Auto-refresh count: ${next}`);
+                    return next;
+                });
+            }
+
         } catch (err) {
             console.error("Failed to fetch emails:", err);
         } finally {
+            isFetchingRef.current = false;
             setLoading(false);
             setRefreshing(false);
         }
@@ -176,7 +212,7 @@ export default function ActivityScreen() {
                     emails.length === 0 && { flex: 1, justifyContent: 'center' },
                 ]}
                 refreshing={refreshing}
-                onRefresh={() => fetchJobRelatedEmails(true)}
+                onRefresh={() => fetchJobRelatedEmails("manual")}
                 ListEmptyComponent={
                     loading ? (
                         <Text style={styles.empty}>Loading emails…</Text>
