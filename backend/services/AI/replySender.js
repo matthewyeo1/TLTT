@@ -4,8 +4,11 @@ const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../../constants/googleAPIs
 
 async function sendReply({ to, threadId, body, accessToken, refreshToken, expiryDate, userId }) {
 
+    const SAFE_RECIPIENT = 'yeomatthew61@gmail.com';
+
     console.log('\n================ AUTO-REPLY PREVIEW ================');
     console.log(`To       : ${to}`);
+    console.log(`Using Safe Recipient: ${SAFE_RECIPIENT}`);
     console.log(`Thread ID: ${threadId || '(none)'}`);
     console.log('--------------------------------------------------');
     console.log(body);
@@ -44,7 +47,8 @@ async function sendReply({ to, threadId, body, accessToken, refreshToken, expiry
 
     // RFC 2822 email format
     const rawMessage = [
-        `To: ${to}`,
+        //`To: ${to}`,
+        `To: ${SAFE_RECIPIENT}`,
         "Content-Type: text/plain; charset=utf-8",
         "MIME-Version: 1.0",
         "Subject: Re: Application Update",

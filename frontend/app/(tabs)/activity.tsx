@@ -47,6 +47,10 @@ export default function ActivityScreen() {
 
     const [loadingEmailId, setLoadingEmailId] = useState<string | null>(null);
 
+    // Countdown state
+    const REFRESH_INTERVAL = 20; // seconds
+    const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
+
     // Add cache loading on mount
     useEffect(() => {
         const loadEmails = async () => {
@@ -64,16 +68,26 @@ export default function ActivityScreen() {
         loadEmails();
     }, []);
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 20 seconds
     useFocusEffect(
         useCallback(() => {
-            const interval = setInterval(() => {
-                fetchJobRelatedEmails();
-            }, 3000);
+            const interval = setInterval(async () => {
+                await fetchJobRelatedEmails();
+                setCountdown(REFRESH_INTERVAL);
+            }, REFRESH_INTERVAL * 1000);
 
             return () => clearInterval(interval);
         }, [])
     );
+
+    // Countdown ticker
+    useEffect(() => {
+        const tick = setInterval(() => {
+            setCountdown((prev) => (prev > 0 ? prev - 1 : REFRESH_INTERVAL));
+        }, 1000);
+
+        return () => clearInterval(tick);
+    }, []);
 
     const fetchJobRelatedEmails = async (
         source: "auto" | "manual" = "auto"
@@ -198,7 +212,7 @@ export default function ActivityScreen() {
     return (
         <View style={styles.container}>
             <Text style={styles.subtitle}>
-                Recent internship-related emails
+                Refresh in: {countdown}s
             </Text>
 
             <FlatList
@@ -212,7 +226,10 @@ export default function ActivityScreen() {
                     emails.length === 0 && { flex: 1, justifyContent: 'center' },
                 ]}
                 refreshing={refreshing}
-                onRefresh={() => fetchJobRelatedEmails("manual")}
+                onRefresh={() => {
+                    fetchJobRelatedEmails("manual")
+                    setCountdown(REFRESH_INTERVAL);
+                }}
                 ListEmptyComponent={
                     loading ? (
                         <Text style={styles.empty}>Loading emails…</Text>

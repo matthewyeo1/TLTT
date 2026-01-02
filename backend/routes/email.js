@@ -3,53 +3,38 @@ const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/pipeline');
-const { extractEmailAddress, extractBody } = require('../services/grouper');
+const { 
+    extractEmailAddress, 
+    extractBody, 
+    extractCompany, 
+    extractRole,
+    POSITIVE_KEYWORDS,
+    NEGATIVE_KEYWORDS,
+    BLACKLISTED_SENDERS
+} = require('../services/grouper');
 const { cleanEmailBody } = require('../services/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
 
-// Hard keyword filters (precision > recall)
-const POSITIVE_KEYWORDS = [
-    'application',
-    'interview',
-    'offer',
-    'position',
-    'role',
-    'recruiter',
-    'hiring',
-    'assessment',
-    'shortlisted',
-    'unfortunately',
-    'regret to inform',
-    'next steps',
-    'not to move forward',
-    'after careful consideration',
-];
 
-const NEGATIVE_KEYWORDS = [
-    'newsletter',
-    'unsubscribe',
-    'sale',
-    'discount',
-    'webinar',
-    'promotion',
-    'marketing',
-    'event reminder',
-    'is hiring',
-    'your application was sent to',
-    'your application was viewed'
-];
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
   const text = `${subject} ${snippet}`.toLowerCase();
   const sender = extractEmailAddress(senderEmail).toLowerCase();
   const user = userEmail.toLowerCase();
 
-  const hasNegative = NEGATIVE_KEYWORDS.some((w) => text.includes(w));
-  const hasPositive = POSITIVE_KEYWORDS.some((w) => text.includes(w));
+  const hasNegative = (NEGATIVE_KEYWORDS || []).some((w) => text.includes(w));
+  const hasPositive = (POSITIVE_KEYWORDS || []).some((w) => text.includes(w));
+  const isBlacklisted = (BLACKLISTED_SENDERS || []).some((s) => sender.includes(s));
+
   const isFromUser = sender === user;
 
-  return !hasNegative && hasPositive && !isFromUser;
+  const company = extractCompany(senderEmail);
+  const role = extractRole(subject);
+
+  const hasCompanyAndRole = company && role;
+
+  return !hasNegative && hasPositive && !isFromUser && !isBlacklisted &&hasCompanyAndRole;
 }
 
 router.get('/job', authMiddleware, async (req, res) => {
@@ -88,7 +73,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         // Query structure
         const listRes = await gmail.users.messages.list({
             userId: 'me',
-            maxResults: 100,
+            maxResults: 500,
             q: `
         (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
         OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
