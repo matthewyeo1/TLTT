@@ -5,8 +5,8 @@ const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/pipeline');
 const { extractEmailAddress, extractBody } = require('../services/grouper');
 const { cleanEmailBody } = require('../services/parser');
-
 const router = express.Router();
+const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
 
 // Hard keyword filters (precision > recall)
 const POSITIVE_KEYWORDS = [
@@ -63,7 +63,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
-            'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback'
+            GMAIL_CALLBACK_URL
         );
 
         // Set user credentials
@@ -144,7 +144,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         // Step 4: Process pipeline in parallel
         const processed = await Promise.all(
             candidates.map(email =>
-                processJobEmail(req.user.id, email)
+                processJobEmail(req.user.id, email, user.gmail.accessToken)
             )
         );
 
@@ -171,7 +171,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
-            'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/auth/google/callback'
+            GMAIL_CALLBACK_URL
         );
 
         // Set user credentials

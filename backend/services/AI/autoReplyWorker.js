@@ -1,4 +1,5 @@
 const JobApplication = require('../../models/JobApplication');
+const User = require('../../models/User');
 const { sendReply } = require('./replySender');
 const { generateReply } = require('./model');
 
@@ -8,6 +9,9 @@ async function handleAutoReply(jobId) {
 
   if (!job.autoReply?.eligible) return;
   if (job.autoReply.replied) return;
+
+  const user = await User.findById(job.userId);
+  if (!user?.gmail?.accessToken) return;
 
   const email = job.emails[0];
   if (!email) return;
@@ -21,6 +25,10 @@ async function handleAutoReply(jobId) {
     to: email.sender,
     threadId: email.threadId, 
     body: replyText,
+    accessToken: user.gmail.accessToken,
+    refreshToken: user.gmail.refreshToken,
+    expiryDate: user.gmail.expiryDate,
+    userId: user._id,
   });
 
   await JobApplication.updateOne(
@@ -30,6 +38,7 @@ async function handleAutoReply(jobId) {
         'autoReply.replied': true,
         'autoReply.repliedAt': new Date(),
         'autoReply.replyMessageId': result.id,
+        'autoReply.queued': false,
       },
     }
   );

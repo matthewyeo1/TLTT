@@ -69,7 +69,7 @@ export default function ActivityScreen() {
         useCallback(() => {
             const interval = setInterval(() => {
                 fetchJobRelatedEmails();
-            }, 30000);
+            }, 3000);
 
             return () => clearInterval(interval);
         }, [])

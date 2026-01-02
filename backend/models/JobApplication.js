@@ -53,6 +53,10 @@ const JobApplicationSchema = new mongoose.Schema(
                 type: Boolean,
                 default: false,
             },
+            queued: {
+                type: Boolean,
+                default: false,
+            },
             repliedAt: {
                 type: Date,
             },
