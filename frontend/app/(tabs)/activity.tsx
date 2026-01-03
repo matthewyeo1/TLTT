@@ -21,6 +21,7 @@ import {
     isCacheStale,
 } from "../../services/emailCache";
 import { MaterialIcons } from '@expo/vector-icons';
+import { FETCH_JOB_EMAILS_URL } from "../../constants/api";
 
 type Email = {
     id: string;
@@ -107,7 +108,7 @@ export default function ActivityScreen() {
             const token = await getToken();
 
             const res = await fetch(
-                "https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/email/job",
+                FETCH_JOB_EMAILS_URL,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -211,9 +212,7 @@ export default function ActivityScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.subtitle}>
-                Refresh in: {countdown}s
-            </Text>
+            <Text style={styles.subtitle}>Activity</Text>
 
             <FlatList
                 data={emails}

@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "frontend",
+    "projectId": "2de8b48e-f557-4bd2-9810-6dd2fcb3a133",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",

@@ -1,0 +1,11 @@
+{
+  "android": {
+    "package": "com.myxw.tltt"
+  },
+  "extra": {
+    "eas": {
+      "projectId": "2de8b48e-f557-4bd2-9810-6dd2fcb3a133"
+    }
+  },
+  "owner": "myxw"
+}

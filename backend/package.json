@@ -5,7 +5,9 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "expo-server-sdk": "^4.0.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "googleapis": "^169.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.0.0"
