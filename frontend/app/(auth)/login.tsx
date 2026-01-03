@@ -4,7 +4,7 @@ import { Link, useRouter } from "expo-router";
 import { loginUser } from "../../services/authServices";
 import { storeToken, getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
-import { BASE_URL } from "../../constants/api";
+import { FETCH_USER_INFO_URL, LOGIN_URL } from "../../constants/api";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function LoginScreen() {
         await storeToken(token);
 
         // Check if Gmail is linked
-        const meRes = await fetch(`${BASE_URL}/user/me`, {
+        const meRes = await fetch(`${FETCH_USER_INFO_URL}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -45,7 +45,7 @@ export default function LoginScreen() {
 
         // If Gmail not linked, fetch Google OAuth URL
         if (!userData.gmail?.accessToken) {
-          const googleRes = await fetch(`${BASE_URL}/auth/google/link`, {
+          const googleRes = await fetch(`${LOGIN_URL}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 

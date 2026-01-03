@@ -2,7 +2,7 @@ const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
-const { processJobEmail } = require('../services/pipeline');
+const { processJobEmail } = require('../services/filtering/pipeline');
 const { 
     extractEmailAddress, 
     extractBody, 
@@ -11,8 +11,8 @@ const {
     POSITIVE_KEYWORDS,
     NEGATIVE_KEYWORDS,
     BLACKLISTED_SENDERS
-} = require('../services/grouper');
-const { cleanEmailBody } = require('../services/parser');
+} = require('../services/filtering/grouper');
+const { cleanEmailBody } = require('../services/filtering/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
 

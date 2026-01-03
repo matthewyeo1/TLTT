@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema({
         accessToken: String,
         refreshToken: String,
         expiryDate: Number
+    },
+    expoToken: {
+        type: [String],
+        default: []
     }
 }, { timestamps: true });
 
