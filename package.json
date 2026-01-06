@@ -1,16 +1,44 @@
 {
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "expo-notifications": "^0.32.15",
-    "groq-sdk": "^0.37.0",
+    "@react-navigation/bottom-tabs": "^7.9.0",
+    "@react-navigation/native": "^7.1.26",
     "expo": "~54.0.30",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "expo-device": "^8.0.10",
+    "expo-haptics": "^15.0.8",
+    "expo-notifications": "^0.32.15",
+    "expo-router": "^6.0.21",
+    "expo-status-bar": "^3.0.9",
+    "expo-symbols": "^1.0.8",
+    "expo-web-browser": "^15.0.10",
+    "groq-sdk": "^0.37.0",
+    "react": "^19.1.0",
+    "react-native": "^0.81.5",
+    "react-native-reanimated": "^4.2.1"
   },
   "name": "TLTT",
   "version": "1.0.0",
   "scripts": {
     "android": "expo run:android",
     "ios": "expo run:ios"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-native": "^0.73.0",
+    "@types/react-test-renderer": "^19.1.0",
+    "typescript": "^5.9.3"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react",
+        "react-native",
+        "react-native-reanimated",
+        "@types/react",
+        "@react-navigation/bottom-tabs",
+        "@react-navigation/native"
+      ]
+    }
   }
 }
