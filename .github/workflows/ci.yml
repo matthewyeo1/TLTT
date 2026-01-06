@@ -34,4 +34,4 @@ jobs:
         run: npx expo config --type public
 
       - name: Expo doctor
-        run: npx expo doctor
+        run: npx expo-doctor
