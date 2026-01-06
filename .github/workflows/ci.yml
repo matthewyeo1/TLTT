@@ -24,7 +24,7 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: npm run tsc -- --noEmit -p frontend/tsconfig.json
+        run: npx tsc --noEmit -p frontend/tsconfig.json
 
       - name: Lint
         run: npm run lint
