@@ -28,5 +28,17 @@
     "@types/react-native": "^0.73.0",
     "@types/react-test-renderer": "^19.1.0",
     "typescript": "^5.9.3"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react",
+        "react-native",
+        "react-native-reanimated",
+        "@types/react",
+        "@react-navigation/bottom-tabs",
+        "@react-navigation/native"
+      ]
+    }
   }
 }

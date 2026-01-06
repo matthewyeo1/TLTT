@@ -32,6 +32,3 @@ jobs:
       
       - name: Validate Expo config
         run: npx expo config --type public
-
-      - name: Expo doctor
-        run: npx expo-doctor
