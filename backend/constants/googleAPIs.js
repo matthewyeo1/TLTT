@@ -1,3 +1,5 @@
+const FRONTEND_URL = 'https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev';
+
 const GMAIL_SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',

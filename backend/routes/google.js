@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { verifyToken } = require('../utils/jwt');
-const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
+const { FRONTEND_URL, GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
 
 const router = express.Router();
 
@@ -99,6 +99,59 @@ router.get('/link', authMiddleware, (req, res) => {
     });
 
     res.json({ url });
+});
+
+router.get('/connect-gmail', authMiddleware, async (req, res) => {
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        GMAIL_CALLBACK_URL
+    );
+
+    const authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        prompt: 'consent',
+        scope: ['https://www.googleapis.com/auth/gmail.readonly'],
+        state: req.user.id,
+    });
+
+    res.redirect(authUrl);
+});
+
+router.get('/connect-gmail/callback', async (req, res) => {
+    const { code, state } = req.query;
+
+    if (!code || !state) {
+        return res.status(400).json({ error: 'Missing OAuth parameters' });
+    }
+
+    const user = await User.findById(state);
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        GMAIL_CALLBACK_URL
+    );
+
+    try {
+        const { tokens } = await oauth2Client.getToken(code);
+
+        user.gmail = {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token, // guaranteed by consent
+            expiryDate: tokens.expiry_date,
+        };
+
+        await user.save();
+
+        res.redirect(`${FRONTEND_URL}/emails`);
+    } catch (err) {
+        console.error('Gmail OAuth callback error:', err);
+        res.status(500).json({ error: 'Failed to connect Gmail' });
+    }
 });
 
 module.exports = router;

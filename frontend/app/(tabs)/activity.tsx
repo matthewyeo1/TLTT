@@ -1,8 +1,8 @@
-import React, { 
-    useEffect, 
+import React, {
+    useEffect,
     useState,
     useRef,
-    useCallback 
+    useCallback
 } from "react";
 import {
     View,
@@ -12,7 +12,8 @@ import {
     StyleSheet,
     ActivityIndicator
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
+import { Link, useFocusEffect, useRouter } from "expo-router";
 import { sharedStyles } from "../styles/shared_styles";
 import { getToken } from "../../utils/token";
 import {
@@ -21,7 +22,7 @@ import {
     isCacheStale,
 } from "../../services/emailCache";
 import { MaterialIcons } from '@expo/vector-icons';
-import { FETCH_JOB_EMAILS_URL } from "../../constants/api";
+import { CONNECT_GMAIL_URL, FETCH_JOB_EMAILS_URL } from "../../constants/api";
 
 type Email = {
     id: string;
@@ -95,7 +96,7 @@ export default function ActivityScreen() {
     ) => {
 
         if (isFetchingRef.current) return;
-        
+
         isFetchingRef.current = true;
 
         if (source === "manual") {
@@ -116,8 +117,13 @@ export default function ActivityScreen() {
                 }
             );
 
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
+            if (res.status === 401) {
+                const body = await res.json();
+
+                if (body.code === "GMAIL_REAUTH_REQUIRED") {
+                    await Linking.openURL(CONNECT_GMAIL_URL);
+                    return;
+                }
             }
 
             const data = await res.json();
@@ -176,8 +182,8 @@ export default function ActivityScreen() {
                     <Text style={styles.date}>{formatDate(item.date)}</Text>
 
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        
-                        
+
+
                         {item.autoReply?.replied === true && (
                             <MaterialIcons
                                 name="mark-email-read"

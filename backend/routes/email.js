@@ -3,10 +3,10 @@ const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/filtering/pipeline');
-const { 
-    extractEmailAddress, 
-    extractBody, 
-    extractCompany, 
+const {
+    extractEmailAddress,
+    extractBody,
+    extractCompany,
     extractRole,
     POSITIVE_KEYWORDS,
     NEGATIVE_KEYWORDS,
@@ -19,29 +19,31 @@ const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
 
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
-  const text = `${subject} ${snippet}`.toLowerCase();
-  const sender = extractEmailAddress(senderEmail).toLowerCase();
-  const user = userEmail.toLowerCase();
+    const text = `${subject} ${snippet}`.toLowerCase();
+    const sender = extractEmailAddress(senderEmail).toLowerCase();
+    const user = userEmail.toLowerCase();
 
-  const hasNegative = (NEGATIVE_KEYWORDS || []).some((w) => text.includes(w));
-  const hasPositive = (POSITIVE_KEYWORDS || []).some((w) => text.includes(w));
-  const isBlacklisted = (BLACKLISTED_SENDERS || []).some((s) => sender.includes(s));
+    const hasNegative = (NEGATIVE_KEYWORDS || []).some((w) => text.includes(w));
+    const hasPositive = (POSITIVE_KEYWORDS || []).some((w) => text.includes(w));
+    const isBlacklisted = (BLACKLISTED_SENDERS || []).some((s) => sender.includes(s));
 
-  const isFromUser = sender === user;
+    const isFromUser = sender === user;
 
-  const company = extractCompany(senderEmail);
-  const role = extractRole(subject);
+    const company = extractCompany(senderEmail);
+    const role = extractRole(subject);
 
-  const hasCompanyAndRole = company && role;
+    const hasCompanyAndRole = company && role;
 
-  return !hasNegative && hasPositive && !isFromUser && !isBlacklisted &&hasCompanyAndRole;
+    return !hasNegative && hasPositive && !isFromUser && !isBlacklisted && hasCompanyAndRole;
 }
 
 router.get('/job', authMiddleware, async (req, res) => {
+    let user;
+
     try {
-        const user = await User.findById(req.user.id);
+        user = await User.findById(req.user.id);
         if (!user?.gmail?.accessToken) {
-            return res.status(600).json({ error: 'Gmail not connected' });
+            return res.status(400).json({ error: 'Gmail not connected' });
         }
 
         // Initialize OAuth2 client with credentials
@@ -58,15 +60,20 @@ router.get('/job', authMiddleware, async (req, res) => {
             expiry_date: user.gmail.expiryDate,
         });
 
-        // Refresh token if expired
-        if (!user.gmail.expiryDate || Date.now() >= user.gmail.expiryDate) {
-            const newToken = await oauth2Client.getAccessToken();
-            if (newToken?.token) {
-                user.gmail.accessToken = newToken.token;
-                // optionally update expiryDate if returned
-                await user.save();
+        oauth2Client.on('tokens', async (tokens) => {
+            if (tokens.access_token) {
+                user.gmail.accessToken = tokens.access_token;
             }
-        }
+            if (tokens.expiry_date) {
+                user.gmail.expiryDate = tokens.expiry_date;
+            }
+            if (tokens.refresh_token) {
+                user.gmail.refreshToken = tokens.refresh_token;
+            }
+            await user.save();
+        });
+
+        await oauth2Client.getAccessToken();
 
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
@@ -138,8 +145,22 @@ router.get('/job', authMiddleware, async (req, res) => {
 
         res.json(results);
     } catch (err) {
-        console.error('Job email fetch error:', err);
-        res.status(500).json({ error: 'Failed to fetch job emails' });
+        if (err?.response?.data?.error === 'invalid_grant') {
+        // Token is permanently invalid — clear stored credentials
+        const user = await User.findById(req.user.id);
+        if (user) {
+            user.gmail = undefined;
+            await user.save();
+        }
+
+        return res.status(401).json({
+            error: 'Gmail authorization expired. Please reconnect Gmail.',
+            code: 'GMAIL_REAUTH_REQUIRED',
+        });
+    }
+
+    console.error('Job email fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch job emails' });
     }
 });
 

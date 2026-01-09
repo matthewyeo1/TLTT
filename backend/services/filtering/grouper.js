@@ -40,6 +40,7 @@ const BLACKLISTED_SENDERS = [
   'donotreply@',
   'support@',
   'noreply@',
+  '@nytimes.com',
 ];
 
 function normalize(text) {
