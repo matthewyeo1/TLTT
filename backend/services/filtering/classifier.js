@@ -6,7 +6,8 @@ function isNoReply(sender) {
         s.includes('no-reply') ||
         s.includes('noreply') ||
         s.includes('do-not-reply') ||
-        s.includes('donotreply')
+        s.includes('donotreply') || 
+        s.includes('myworkday')
     );
 }
 
