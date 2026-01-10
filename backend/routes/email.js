@@ -1,6 +1,7 @@
 const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
+const JobApplication = require('../models/JobApplication');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail } = require('../services/filtering/pipeline');
 const {
@@ -161,6 +162,23 @@ router.get('/job', authMiddleware, async (req, res) => {
 
     console.error('Job email fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch job emails' });
+    }
+});
+
+router.get("/logs", authMiddleware, async (req, res) => {
+    try {
+        const logs = await JobApplication.find({ 
+            userId: req.user.id,
+            status: { $in: ['interview', 'accepted'] }
+        })
+        .sort({ lastUpdatedFromEmailAt: -1 })
+        .limit(10)
+        .select('company role status updatedAt lastUpdatedFromEmailAt');
+
+        res.json(logs);
+    } catch (err) {
+        console.error('Failed to fetch log emails:', err);
+        res.status(500).json({ error: 'Failed to fetch log emails' });
     }
 });
 
