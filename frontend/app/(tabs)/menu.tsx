@@ -5,12 +5,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
-import { FETCH_USER_INFO_URL } from "../../constants/api";
+import { BASE_URL, FETCH_USER_INFO_URL } from "../../constants/api";
+
+type Logs = {
+  _id: string;
+  company: string;
+  role: string;
+  status: "interview" | "accepted";
+  updatedAt: string;
+};
 
 export default function MenuScreen() {
 
   const [userName, setUserName] = useState("User");
   const [loading, setLoading] = useState(true);
+  const [logs, setLogs] = useState<Logs[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
 
   // Fetch user info on mount
   useEffect(() => {
@@ -38,6 +48,30 @@ export default function MenuScreen() {
     };
 
     fetchUser();
+  }, []);
+
+  // Load logs
+  useEffect(() => {
+    const loadNotifications = async () => {
+      const token = await getToken();
+
+      try {
+        const res = await fetch(`${BASE_URL}/email/logs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error("Failed to load notifications");
+
+        const data = await res.json();
+        setLogs(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingLogs(false);
+      }
+    };
+
+    loadNotifications();
   }, []);
 
   // Logout handler
@@ -77,9 +111,35 @@ export default function MenuScreen() {
         </View>
       </View>
 
-      {/* Notifications Placeholder */}
       <View style={styles.notificationsBox}>
-        <Text style={styles.notificationsText}>Notifications will appear here</Text>
+        <Text style={styles.notificationsTitle}>Notifications</Text>
+
+        {loadingLogs ? (
+          <Text style={styles.empty}>Loading…</Text>
+        ) : logs.length === 0 ? (
+          <Text style={styles.empty}>No action required</Text>
+        ) : (
+          logs.map(n => (
+            <Pressable
+              key={n._id}
+              style={styles.notificationItem}
+              onPress={() =>
+                router.push({
+                  pathname: "/activity",
+                  params: { jobId: n._id },
+                })
+              }
+            >
+              <Text style={styles.notificationType}>
+                {n.status === "interview" ? "Interview" : "Offer"}
+              </Text>
+
+              <Text style={styles.notificationText}>
+                {n.company} — {n.role}
+              </Text>
+            </Pressable>
+          ))
+        )}
       </View>
 
       <Pressable
@@ -156,5 +216,28 @@ const styles = StyleSheet.create({
     color: "gray",
     textAlign: "center",
     marginTop: 24,
+  },
+  notificationsTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: "#333",
+  },
+  notificationItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "#f4f6fb",
+    marginBottom: 10,
+  },
+  notificationType: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#007bff",
+    marginBottom: 4,
+  },
+  notificationText: {
+    fontSize: 15,
+    color: "#333",
   },
 });

@@ -1,8 +1,9 @@
 const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
+const EmailLog = require('../models/EmailLog');
 const authMiddleware = require('../middleware/auth');
-const { processJobEmail } = require('../services/filtering/pipeline');
+const { processJobEmail, actionable } = require('../services/filtering/pipeline');
 const {
     extractEmailAddress,
     extractBody,
@@ -15,8 +16,6 @@ const {
 const { cleanEmailBody } = require('../services/filtering/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
-
-
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
     const text = `${subject} ${snippet}`.toLowerCase();
@@ -161,6 +160,23 @@ router.get('/job', authMiddleware, async (req, res) => {
 
     console.error('Job email fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch job emails' });
+    }
+});
+
+router.get("/logs", authMiddleware, async (req, res) => {
+    try {
+        const logs = await EmailLog.find({ 
+            userId: req.user.id,
+            status: { $in: ['interview', 'accepted'] }
+        })
+        .sort({ lastUpdatedFromEmailAt: -1 })
+        .limit(10)
+        .select('company role status updatedAt lastUpdatedFromEmailAt');
+
+        res.json(logs);
+    } catch (err) {
+        console.error('Failed to fetch log emails:', err);
+        res.status(500).json({ error: 'Failed to fetch log emails' });
     }
 });
 
