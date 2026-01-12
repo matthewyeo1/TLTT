@@ -1,9 +1,9 @@
 const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
-const JobApplication = require('../models/JobApplication');
+const EmailLog = require('../models/EmailLog');
 const authMiddleware = require('../middleware/auth');
-const { processJobEmail } = require('../services/filtering/pipeline');
+const { processJobEmail, actionable } = require('../services/filtering/pipeline');
 const {
     extractEmailAddress,
     extractBody,
@@ -16,8 +16,6 @@ const {
 const { cleanEmailBody } = require('../services/filtering/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
-
-
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
     const text = `${subject} ${snippet}`.toLowerCase();
@@ -167,7 +165,7 @@ router.get('/job', authMiddleware, async (req, res) => {
 
 router.get("/logs", authMiddleware, async (req, res) => {
     try {
-        const logs = await JobApplication.find({ 
+        const logs = await EmailLog.find({ 
             userId: req.user.id,
             status: { $in: ['interview', 'accepted'] }
         })

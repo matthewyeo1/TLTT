@@ -2,6 +2,7 @@ const JobApplication = require('../../models/JobApplication');
 const { isNoReply, classifyStatus } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
+const EmailLog = require('../../models/EmailLog');
 
 async function processJobEmail(userId, email, accessToken) {
   const status = classifyStatus(email);
@@ -53,6 +54,26 @@ async function processJobEmail(userId, email, accessToken) {
     },
     { new: true, upsert: true }
   );
+
+  // Create EmailLog entry
+  if (status === 'interview' || status === 'accepted') {
+    try {
+      await EmailLog.create({
+        userId,
+        messageId: email.id,
+        status,
+        subject: email.subject,
+        from: email.sender,
+        date: new Date(email.date),
+        company,
+        role,
+      });
+    } catch (err) {
+      if (err.code !== 11000) {
+        console.error('Error creating EmailLog:', err);
+      } 
+    }
+  }
 
   // Queue auto-reply if eligible and not replied yet
   if (eligibleForAutoReply && !job.autoReply.replied) {
