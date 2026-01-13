@@ -96,7 +96,8 @@ export default function MenuScreen() {
           <Text style={styles.title}>Welcome, {userName} 👋</Text>
         </View>
         <View style={styles.topIcons}>
-          <Pressable style={styles.iconButton} /* onPress={() => router.push("/settings")} */>
+          <Pressable style={styles.iconButton} 
+            onPress={() => router.push("/settings")} >
             <Ionicons name="settings-outline" size={28} color="#fff" />
           </Pressable>
 
