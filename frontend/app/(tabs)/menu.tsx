@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   container: {
     ...sharedStyles.container,
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     backgroundColor: "#000",
     paddingTop: 80,
     justifyContent: "space-between",
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   bottomButtonText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
   },
   empty: {

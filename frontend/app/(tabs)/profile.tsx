@@ -11,7 +11,10 @@ import {
 import { useRouter } from "expo-router";
 import { getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
-import { BASE_URL, CHANGE_GMAIL_URL } from "../../constants/api";
+import { BASE_URL, 
+         CHANGE_GMAIL_URL,
+         PROTECTED_ROUTE 
+} from "../../constants/api";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SPECIAL_CHAR_REGEX = /[!@#$%^&*()\[\]{};:'"\\|,<.>\/?`~\-+=_]/;
@@ -31,7 +34,7 @@ export default function ProfileScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const res = await fetch(`${BASE_URL}/auth/protected`, {
+        const res = await fetch(`${PROTECTED_ROUTE}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;
@@ -174,8 +177,8 @@ export default function ProfileScreen() {
         <Text style={styles.buttonText}>{saving ? "Saving…" : "Save Changes"}</Text>
       </Pressable>
 
-      <Pressable style={[styles.button, styles.backButton]} onPress={() => router.back()}>
-        <Text style={styles.buttonText}>Back</Text>
+      <Pressable style={[ styles.button, { marginTop: 300 }]} onPress={() => router.back()}>
+        <Text style={styles.buttonText}>Back to Settings</Text>
       </Pressable>
     </View>
   );
@@ -195,20 +198,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginLeft: 4,
     fontSize: 13,
+    borderColor: "gray",
+    borderRadius: 1,
   },
   input: {
     ...sharedStyles.input,
     marginBottom: 6,
+    borderColor: "#333",
   },
   saveButton: {
     marginTop: 18,
     width: "100%",
-  },
-  backButton: {
-    marginTop: 12,
-    width: "60%",
-    alignSelf: "center",
-    backgroundColor: "#333",
   },
   emailRow: {
     position: "relative",

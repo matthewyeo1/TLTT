@@ -5,3 +5,4 @@ export const SEND_EXPO_TOKEN_URL = `${BASE_URL}/user/me/token`;
 export const FETCH_JOB_EMAILS_URL = `${BASE_URL}/email/job`;
 export const CONNECT_GMAIL_URL = `${BASE_URL}/auth/google/connect-gmail`;
 export const CHANGE_GMAIL_URL = `${BASE_URL}/auth/update`;
+export const PROTECTED_ROUTE = `${BASE_URL}/auth/protected`;

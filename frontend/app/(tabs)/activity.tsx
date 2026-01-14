@@ -301,9 +301,10 @@ const styles = StyleSheet.create({
     },
     backButton: {
         alignSelf: "center",
-        width: "80%",
+        width: "100%",
         marginTop: 12,
         marginBottom: 24,
+        paddingHorizontal: 16,
     },
     metaRow: {
         flexDirection: "row",

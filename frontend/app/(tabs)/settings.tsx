@@ -36,11 +36,6 @@ export default function SettingsScreen() {
                     value="View"
                     onPress={() => router.push("/profile")}
                 />
-                <Row
-                    label="Connected Gmail"
-                    value="Manage"
-                    onPress={() => router.push("/connect-gmail")}
-                />
             </View>
             <Text style={styles.section}>Notifications</Text>
             <View style={styles.card}>
@@ -79,7 +74,7 @@ export default function SettingsScreen() {
                 />
             </View>
             <Pressable
-                style={[styles.button, styles.backButton]}
+                style={[styles.button, { marginTop: 145 }]}
                 onPress={() => router.replace("/(tabs)/menu")}
             >
                 <Text style={styles.buttonText}>Back to Menu</Text>
@@ -117,8 +112,7 @@ const styles = StyleSheet.create({
     row: {
         paddingVertical: 14,
         paddingHorizontal: 16,
-        flexDirection: "row",
-        
+        flexDirection: "row", 
         alignItems: "center",
         borderBottomWidth: 1,
         borderBottomColor: "#1f1f1f",
@@ -132,11 +126,6 @@ const styles = StyleSheet.create({
         color: "gray",
         fontSize: 14,
         marginLeft: "auto",
-    },
-    backButton: {
-        alignSelf: "center",
-        width: "90%",
-        marginTop: 36,
     },
     switch: {
         marginLeft: "auto",
