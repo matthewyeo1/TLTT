@@ -218,7 +218,7 @@ export default function ActivityScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.subtitle}>Activity</Text>
+            <Text style={styles.subtitle}>Most Recent Job Emails</Text>
 
             <FlatList
                 data={emails}
