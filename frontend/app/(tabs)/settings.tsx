@@ -41,11 +41,6 @@ export default function SettingsScreen() {
                     value="Manage"
                     onPress={() => router.push("/connect-gmail")}
                 />
-                <Row
-                    label="Change Password"
-                    value="Update"
-                    onPress={() => router.push("/change-password")}
-                />
             </View>
             <Text style={styles.section}>Notifications</Text>
             <View style={styles.card}>
@@ -98,7 +93,7 @@ const styles = StyleSheet.create({
     section: {
         color: "gray",
         marginBottom: 8,
-        marginTop: 80,
+        marginTop: 100,
         marginLeft: 6,
         fontSize: 13,
         textTransform: "uppercase",

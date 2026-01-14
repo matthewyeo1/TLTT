@@ -39,7 +39,7 @@ export default function MenuScreen() {
         if (!res.ok) throw new Error(`Failed to fetch user info: ${res.status}`);
 
         const data = await res.json();
-        setUserName(data.name || data.email || "User"); // adjust keys to your API
+        setUserName(data.name || data.email || "User"); 
       } catch (err) {
         console.error("Error fetching user info:", err);
       } finally {
@@ -113,33 +113,30 @@ export default function MenuScreen() {
       </View>
 
       <View style={styles.notificationsBox}>
-        <Text style={styles.notificationsTitle}>Notifications</Text>
+        <Text style={styles.notificationsTitle}>Actions</Text>
 
         {loadingLogs ? (
           <Text style={styles.empty}>Loading…</Text>
         ) : logs.length === 0 ? (
           <Text style={styles.empty}>No action required</Text>
         ) : (
-          logs.map(n => (
-            <Pressable
-              key={n._id}
-              style={styles.notificationItem}
-              onPress={() =>
-                router.push({
-                  pathname: "/activity",
-                  params: { jobId: n._id },
-                })
-              }
-            >
-              <Text style={styles.notificationType}>
-                {n.status === "interview" ? "Interview" : "Offer"}
-              </Text>
+          // Render non-pressable items and keep them at the top
+          <View style={styles.notificationsList}>
+            {logs.map(n => (
+              <View
+                key={n._id}
+                style={styles.notificationItem}
+              >
+                <Text style={styles.notificationType}>
+                  {n.status === "interview" ? "Interview" : "Offer"}
+                </Text>
 
-              <Text style={styles.notificationText}>
-                {n.company} — {n.role}
-              </Text>
-            </Pressable>
-          ))
+                <Text style={styles.notificationText}>
+                  {n.company} — {n.role}
+                </Text>
+              </View>
+            ))}
+          </View>
         )}
       </View>
 
@@ -185,16 +182,31 @@ const styles = StyleSheet.create({
   notificationsBox: {
     flex: 1,
     marginVertical: 40,
-    backgroundColor: "#241c1cff",
+    backgroundColor: "#000",
     borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
+    borderColor: "#222",
+    borderWidth: 1,
+    justifyContent: "flex-start",
+    alignItems: "stretch",
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+  },
+  notificationsList: {
+    width: "100%",
+  },
+  notificationItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderColor: "#222",
+    borderWidth: 1,
+    backgroundColor: "#000",
+    marginBottom: 10,
+    alignSelf: "stretch",
   },
   notificationsText: {
     color: "#999",
@@ -222,14 +234,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
-    color: "#333",
-  },
-  notificationItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "#f4f6fb",
-    marginBottom: 10,
+    color: "#fff",
   },
   notificationType: {
     fontSize: 13,
@@ -239,6 +244,6 @@ const styles = StyleSheet.create({
   },
   notificationText: {
     fontSize: 15,
-    color: "#333",
+    color: "#fff",
   },
 });
