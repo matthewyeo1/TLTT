@@ -171,7 +171,7 @@ router.get("/logs", authMiddleware, async (req, res) => {
         })
         .sort({ lastUpdatedFromEmailAt: -1 })
         .limit(10)
-        .select('company role status updatedAt lastUpdatedFromEmailAt');
+        .select('company role status interviewSubtype updatedAt lastUpdatedFromEmailAt');
 
         res.json(logs);
     } catch (err) {

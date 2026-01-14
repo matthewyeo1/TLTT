@@ -30,6 +30,7 @@ type Email = {
     subject: string;
     date: string;
     status: "pending" | "accepted" | "rejected" | "interview";
+    interviewSubtype?: "online_assessment" | "schedule_interview" | "unspecified";
     autoReply?: {
         eligible: boolean;
         replied: boolean;
@@ -150,20 +151,31 @@ export default function ActivityScreen() {
     const statusColor = (s: Email["status"]) =>
         s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : s === "interview" ? "#17a2b8" : "#ffc107";
 
+    const interviewSubtypeMeta = (subtype?: Email["interviewSubtype"]) => {
+        switch (subtype) {
+            case "online_assessment":
+                return { label: "ONLINE ASSESSMENT", color: "#6f42c1" };
+            case "schedule_interview":
+                return { label: "SCHEDULE INTERVIEW", color: "#0d6efd" };
+            default:
+                return null;
+        }
+    };
+
     const renderItem = ({ item }: { item: Email }) => {
         const isLoading = loadingEmailId === item.id;
 
         return (
             <Pressable
                 onPress={async () => {
-                    setLoadingEmailId(item.id); // start loader
+                    setLoadingEmailId(item.id); 
                     try {
                         router.push({
                             pathname: "/email/[id]",
                             params: { id: item.id },
                         });
                     } finally {
-                        setLoadingEmailId(null); // stop loader
+                        setLoadingEmailId(null); 
                     }
                 }}
                 style={({ pressed }) => [
@@ -204,6 +216,23 @@ export default function ActivityScreen() {
                                 {(item.status ?? "pending").toUpperCase()}
                             </Text>
                         </View>
+
+                        {item.status === "interview" &&
+                            interviewSubtypeMeta(item.interviewSubtype) && (
+                                <View
+                                    style={[
+                                        styles.badge,
+                                        {
+                                            backgroundColor:
+                                                interviewSubtypeMeta(item.interviewSubtype)!.color,
+                                        },
+                                    ]}
+                                >
+                                    <Text style={styles.badgeText}>
+                                        {interviewSubtypeMeta(item.interviewSubtype)!.label}
+                                    </Text>
+                                </View>
+                            )}
                     </View>
                 </View>
 

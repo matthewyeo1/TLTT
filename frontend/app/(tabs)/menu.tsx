@@ -12,8 +12,21 @@ type Logs = {
   company: string;
   role: string;
   status: "interview" | "accepted";
+  interviewSubtype?: "online_assessment" | "schedule_interview" | "unspecified";
   updatedAt: string;
 };
+
+function formatNotificationType(status: Logs["status"], subtype?: Logs["interviewSubtype"]) {
+  if (status === "accepted") return "Offer";
+
+  if (status === "interview") {
+    if (subtype === "online_assessment") return "Online Assessment";
+    if (subtype === "schedule_interview") return "Interview Scheduling";
+    return "Interview";
+  }
+
+  return "";
+}
 
 export default function MenuScreen() {
 
@@ -128,7 +141,7 @@ export default function MenuScreen() {
                 style={styles.notificationItem}
               >
                 <Text style={styles.notificationType}>
-                  {n.status === "interview" ? "Interview" : "Offer"}
+                  {formatNotificationType(n.status, n.interviewSubtype)}
                 </Text>
 
                 <Text style={styles.notificationText}>

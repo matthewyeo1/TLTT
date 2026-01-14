@@ -1,5 +1,5 @@
 const JobApplication = require('../../models/JobApplication');
-const { isNoReply, classifyStatus } = require('./classifier');
+const { isNoReply, inferInterviewSubtypeHeuristic, classifyStatus } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
 const EmailLog = require('../../models/EmailLog');
@@ -10,6 +10,7 @@ async function processJobEmail(userId, email, accessToken) {
   const role = extractRole(email.subject);
   const isRejected = status === 'rejected';
   const eligibleForAutoReply = isRejected && !isNoReply(email.sender);
+  let inferredSubtype = 'unspecified';
 
   if (!company || !role) return null;
 
@@ -50,10 +51,27 @@ async function processJobEmail(userId, email, accessToken) {
         company,
         role,
         normalizedKey,
+        interviewSubtype: 'unspecified',
       },
     },
     { new: true, upsert: true }
   );
+
+  // Update interview subtype if status is interview
+  if (status === "interview" && job.interviewSubtype === "unspecified") {
+    inferredSubtype = inferInterviewSubtypeHeuristic(email);
+    console.log("Inferred subtype:", inferredSubtype, email.subject);
+
+    if (inferredSubtype !== "unspecified") {
+      job.interviewSubtype = inferredSubtype;
+      await job.save();
+    }
+  }
+
+  // Queue auto-reply if eligible and not replied yet
+  if (eligibleForAutoReply && !job.autoReply.replied) {
+    queueAutoReply(job._id);
+  }
 
   // Create EmailLog entry
   if (status === 'interview' || status === 'accepted') {
@@ -67,6 +85,7 @@ async function processJobEmail(userId, email, accessToken) {
         date: new Date(email.date),
         company,
         role,
+        interviewSubtype: status === 'interview' ? inferredSubtype : undefined,
       });
     } catch (err) {
       if (err.code !== 11000) {
@@ -75,10 +94,7 @@ async function processJobEmail(userId, email, accessToken) {
     }
   }
 
-  // Queue auto-reply if eligible and not replied yet
-  if (eligibleForAutoReply && !job.autoReply.replied) {
-    queueAutoReply(job._id);
-  }
+  
 
   return {
     id: email.id,
