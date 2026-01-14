@@ -17,7 +17,7 @@ function classifyStatus(email) {
   if (
     text.includes('unfortunately') ||
     text.includes('regret to inform') ||
-    text.includes('we decided to move forward with other candidates') ||
+    text.includes('decided to move forward with other candidates') ||
     text.includes('not to move forward') ||
     text.includes('after careful consideration')
   ) {

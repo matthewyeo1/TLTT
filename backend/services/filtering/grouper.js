@@ -17,6 +17,7 @@ const POSITIVE_KEYWORDS = [
     'next steps',
     'not to move forward',
     'after careful consideration',
+    'decided not to move forward'
 ];
 
 const NEGATIVE_KEYWORDS = [

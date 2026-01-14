@@ -5,9 +5,25 @@ const { generateToken } = require('../utils/jwt');
 const authMiddleware = require('../middleware/auth');
 const loginLimiter = require('../middleware/loginLimiter');
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAME_REGEX = /^[A-Za-z0-9 ]+$/;
+const SPECIAL_CHAR_REGEX = /[!@#$%^&*()\[\]{};:'"\\|,<.>\/?`~\-+=_]/;
+
 // Protected route 
-router.get('/protected', authMiddleware, (req, res) => {
-  res.json({ message: 'You are authenticated!', user: req.user });
+router.get('/protected', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('email name');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load profile' });
+  }
 });
 
 // Register user
@@ -28,14 +44,12 @@ router.post('/register', async (req, res) => {
   }
 
   // Check 2. Name validation
-  const nameRegex = /^[A-Za-z0-9 ]+$/;
-  if (!nameRegex.test(name)) {
+  if (!NAME_REGEX.test(name)) {
     return res.status(400).json({ error: "Name can only contain letters, numbers, and spaces" });
   }
 
   // Check 3. Email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  if (!EMAIL_REGEX.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
@@ -45,8 +59,7 @@ router.post('/register', async (req, res) => {
   }
   
   // Check 4b. Password must include at least one special character
-  const specialCharRegex = /[!@#$%^&*()\[\]{};:'"\\|,<.>\/?`~\-+=_]/;
-  if (!specialCharRegex.test(password)) {
+  if (!SPECIAL_CHAR_REGEX.test(password)) {
     return res.status(400).json({ error: 'Password must include at least one special character' });
   }
 
@@ -87,6 +100,66 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.json({ userId: user._id, token });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/update', authMiddleware, async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // EMAIL UPDATE
+    if (email) {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (!EMAIL_REGEX.test(normalizedEmail)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      const existingEmail = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: user._id },
+      });
+
+      if (existingEmail) {
+        return res.status(409).json({ error: 'Email already in use' });
+      }
+
+      user.email = normalizedEmail;
+    }
+
+    // PASSWORD UPDATE
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password required' });
+      }
+
+      const valid = await user.comparePassword(currentPassword);
+      if (!valid) {
+        return res.status(403).json({ error: 'Current password incorrect' });
+      }
+
+      // Same rules as registration
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      }
+
+      if (!SPECIAL_CHAR_REGEX.test(newPassword)) {
+        return res.status(400).json({
+          error: 'Password must include at least one special character',
+        });
+      }
+
+      user.passwordHash = newPassword; // hashed via pre-save hook
+    }
+
+    await user.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ error: 'Profile update failed' });
   }
 });
 
