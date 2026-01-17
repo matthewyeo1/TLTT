@@ -84,13 +84,63 @@ function extractCompany(sender = '') {
     return null;
 }
 
-function extractRole(subject = '') {
-    const cleaned = subject
-        .replace(/your application at/i, '')
-        .replace(/\[.*?\]/g, '')
-        .split(/–|-|@/)[0];
+function extractRoleFromSubject(subject = '') {
+    if (!subject) return null;
 
-    return cleaned ? normalize(cleaned) : null;
+    // Common patterns
+    const match =
+        subject.match(/application at .*? for (.+)$/i) ||
+        subject.match(/application for (.+)$/i) ||
+        subject.match(/–\s*(.+)$/) ||
+        subject.match(/-\s*(.+)$/);
+
+    if (match && match[1]) {
+        return normalize(match[1]);
+    }
+
+    return null;
+}
+
+function extractRoleFromBody(body = '') {
+  if (!body) return null;
+
+  const normalizedBody = body.toLowerCase();
+
+  const ROLE_PATTERNS = [
+    /for the ([a-z0-9\s]{3,60}) (position|role)/i,
+    /application for ([a-z0-9\s]{3,60})/i,
+    /applied (to|for) the ([a-z0-9\s]{3,60})/i,
+    /interview for ([a-z0-9\s]{3,60})/i,
+    /position of ([a-z0-9\s]{3,60})/i,
+    /role of ([a-z0-9\s]{3,60})/i,
+  ];
+
+  for (const pattern of ROLE_PATTERNS) {
+    const match = normalizedBody.match(pattern);
+    if (match) {
+      // Pick the capture group that actually contains the role
+      const role =
+        match[2] && match[2].length > 3 ? match[2] : match[1];
+
+      return normalize(role);
+    }
+  }
+
+  return null;
+}
+
+function extractRole(subject = '', body = '') {
+  const subjectRole = extractRoleFromSubject(subject);
+  if (subjectRole && subjectRole !== 'unknown') {
+    return subjectRole;
+  }
+
+  const bodyRole = extractRoleFromBody(body);
+  if (bodyRole) {
+    return bodyRole;
+  }
+
+  return null;
 }
 
 function extractBody(payload) {

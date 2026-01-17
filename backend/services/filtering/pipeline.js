@@ -16,12 +16,13 @@ function escalateStatus(current, incoming) {
   return STATUS_PRIORITY[incoming] > STATUS_PRIORITY[current] ? incoming : current;
 }
 
-async function processJobEmail(userId, email, accessToken) {
+async function processJobEmail(userId, email) {
   const status = classifyStatus(email);
   const company = extractCompany(email.sender);
   const role = extractRole(email.subject);
   const isRejected = status === 'rejected';
   const eligibleForAutoReply = isRejected && !isNoReply(email.sender);
+  const emailDate = new Date(email.date);
 
   if (!company || !role) return null;
 
@@ -53,6 +54,18 @@ async function processJobEmail(userId, email, accessToken) {
     emailsToPush = emailsToPush.filter(e => !existingIds.has(e.messageId));
   }
 
+  // Determine if the email is newer than last update
+  const isNewerThanLastUpdate =
+    !job?.lastUpdatedFromEmailAt ||
+    emailDate > job.lastUpdatedFromEmailAt;
+
+  // Determine next status
+  let nextStatus = job?.status ?? status;
+  
+  if (isNewerThanLastUpdate) {
+    nextStatus = escalateStatus(nextStatus, status);
+  }
+
   // Atomic update 
   if (emailsToPush.length > 0 || !job) {
     job = await JobApplication.findOneAndUpdate(
@@ -70,7 +83,7 @@ async function processJobEmail(userId, email, accessToken) {
           lastUpdatedFromEmailAt: new Date(),
           autoReply: autoReplyObject,
         },
-        $max: { status },
+        $max: { status: nextStatus },
       },
       { new: true, upsert: true }
     );

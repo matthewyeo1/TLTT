@@ -11,6 +11,16 @@ function isNoReply(sender) {
     );
 }
 
+function isApplicationConfirmation(text) {
+  return (
+    text.includes('thank you for applying') ||
+    text.includes('application received') ||
+    text.includes('we have received your application') ||
+    text.includes('your application has been submitted') ||
+    text.includes('confirmation of your application')
+  );
+}
+
 function inferInterviewSubtypeHeuristic(email) {
   const text = `${email.subject} ${email.snippet}`.toLowerCase();
 
@@ -38,6 +48,10 @@ function inferInterviewSubtypeHeuristic(email) {
 
 function classifyStatus(email) {
   const text = `${email.subject} ${email.snippet}`.toLowerCase();
+
+  if (isApplicationConfirmation(text)) {
+    return 'pending';
+  }
 
   if (
     text.includes('unfortunately') ||
