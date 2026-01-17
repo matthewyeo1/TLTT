@@ -6,3 +6,5 @@ export const FETCH_JOB_EMAILS_URL = `${BASE_URL}/email/job`;
 export const CONNECT_GMAIL_URL = `${BASE_URL}/auth/google/connect-gmail`;
 export const CHANGE_GMAIL_URL = `${BASE_URL}/auth/update`;
 export const PROTECTED_ROUTE = `${BASE_URL}/auth/protected`;
+export const FETCH_INTERVIEW_EMAILS_URL = `${BASE_URL}/email/logs`;
+export const FETCH_CALENDAR_EVENTS_URL = `${BASE_URL}/calendar/availability`;

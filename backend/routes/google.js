@@ -3,7 +3,12 @@ const { google } = require('googleapis');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { verifyToken } = require('../utils/jwt');
-const { FRONTEND_URL, GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
+const { 
+    FRONTEND_URL, 
+    GMAIL_SCOPES, 
+    GCALENDAR_SCOPES, 
+    GMAIL_CALLBACK_URL 
+} = require('../constants/googleAPIs');
 
 const router = express.Router();
 
@@ -47,7 +52,7 @@ router.get('/', (req, res) => {
         const url = oauth2Client.generateAuthUrl({
             access_type: 'offline',
             prompt: 'consent',
-            scope: GMAIL_SCOPES,
+            scope: [...GMAIL_SCOPES, ...GCALENDAR_SCOPES],
             state: req.user.id
         });
 
@@ -94,7 +99,7 @@ router.get('/link', authMiddleware, (req, res) => {
     const url = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         prompt: 'consent',
-        scope: GMAIL_SCOPES,
+        scope: [...GMAIL_SCOPES, ...GCALENDAR_SCOPES],
         state: req.user.id
     });
 
@@ -111,7 +116,7 @@ router.get('/connect-gmail', authMiddleware, async (req, res) => {
     const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         prompt: 'consent',
-        scope: ['https://www.googleapis.com/auth/gmail.readonly'],
+        scope: [...GMAIL_SCOPES, ...GCALENDAR_SCOPES],
         state: req.user.id,
     });
 
@@ -152,6 +157,35 @@ router.get('/connect-gmail/callback', async (req, res) => {
         console.error('Gmail OAuth callback error:', err);
         res.status(500).json({ error: 'Failed to connect Gmail' });
     }
+});
+
+router.get('/availability', authMiddleware, async (req, res) => {
+    try {
+        const { start, end, timezone } = req.query;
+
+        if (!start || !end || !timezone) {
+            return res.status(400).json({ error: 'Missing required query parameters' });
+        }
+
+        const user = await User.findById(req.user.id);
+
+        if (!user || !user.gmail?.refreshToken) {
+            return res.status(402).json({ error: 'Google account not connected' });
+        }
+
+        oauth2Client.setCredentials({
+            access_token: user.gmail.accessToken,
+            refresh_token: user.gmail.refreshToken,
+            expiry_date: user.gmail.expiryDate,
+        });
+
+        
+
+    } catch (err) {
+        console.error('Google Calendar availability error:', err);
+        res.status(500).json({ error: 'Failed to fetch availability' });
+    }
+
 });
 
 module.exports = router;

@@ -11,10 +11,7 @@ import {
 import { useRouter } from "expo-router";
 import { getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
-import { BASE_URL, 
-         CHANGE_GMAIL_URL,
-         PROTECTED_ROUTE 
-} from "../../constants/api";
+import { CHANGE_GMAIL_URL, PROTECTED_ROUTE } from "../../constants/api";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SPECIAL_CHAR_REGEX = /[!@#$%^&*()\[\]{};:'"\\|,<.>\/?`~\-+=_]/;

@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
-import { BASE_URL, FETCH_USER_INFO_URL } from "../../constants/api";
+import { FETCH_USER_INFO_URL, FETCH_INTERVIEW_EMAILS_URL } from "../../constants/api";
 
 type Logs = {
   _id: string;
@@ -69,7 +69,7 @@ export default function MenuScreen() {
       const token = await getToken();
 
       try {
-        const res = await fetch(`${BASE_URL}/email/logs`, {
+        const res = await fetch(`${FETCH_INTERVIEW_EMAILS_URL}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -109,6 +109,11 @@ export default function MenuScreen() {
           <Text style={styles.title}>Welcome, {userName} 👋</Text>
         </View>
         <View style={styles.topIcons}>
+          <Pressable style={styles.iconButton} 
+            onPress={() => router.push("/calendar")} >
+            <Ionicons name="calendar" size={28} color="#fff" />
+          </Pressable>
+
           <Pressable style={styles.iconButton} 
             onPress={() => router.push("/settings")} >
             <Ionicons name="settings-outline" size={28} color="#fff" />

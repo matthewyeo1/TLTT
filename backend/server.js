@@ -16,6 +16,7 @@ app.use('/auth', authRoutes);
 app.use('/auth/google', googleRoutes);
 app.use('/email', emailRoutes);
 app.use('/user', userRoutes);
+app.use('/calendar', googleRoutes);
 
 const PORT = process.env.PORT;
 
