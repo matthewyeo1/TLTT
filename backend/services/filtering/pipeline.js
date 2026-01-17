@@ -1,8 +1,20 @@
 const JobApplication = require('../../models/JobApplication');
+const EmailLog = require('../../models/EmailLog');
 const { isNoReply, inferInterviewSubtypeHeuristic, classifyStatus } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
-const EmailLog = require('../../models/EmailLog');
+
+const STATUS_PRIORITY = {
+  pending: 0,
+  interview: 1,
+  rejected: 2,
+  accepted: 3,
+};
+
+// Replaces current status with the new one if it has higher priority
+function escalateStatus(current, incoming) {
+  return STATUS_PRIORITY[incoming] > STATUS_PRIORITY[current] ? incoming : current;
+}
 
 async function processJobEmail(userId, email, accessToken) {
   const status = classifyStatus(email);
@@ -10,7 +22,6 @@ async function processJobEmail(userId, email, accessToken) {
   const role = extractRole(email.subject);
   const isRejected = status === 'rejected';
   const eligibleForAutoReply = isRejected && !isNoReply(email.sender);
-  let inferredSubtype = 'unspecified';
 
   if (!company || !role) return null;
 
@@ -25,44 +36,56 @@ async function processJobEmail(userId, email, accessToken) {
     inferredStatus: status,
   };
 
-  // Fetch existing job to preserve replied state if it exists
-  const existingJob = await JobApplication.findOne({ normalizedKey });
+  // Fetch existing job to prevent duplicates
+  let job = await JobApplication.findOne({ normalizedKey });
 
   const autoReplyObject = {
     eligible: eligibleForAutoReply,
-    replied: existingJob?.autoReply?.replied || false,
-    repliedAt: existingJob?.autoReply?.repliedAt,
-    replyMessageId: existingJob?.autoReply?.replyMessageId,
+    replied: job?.autoReply?.replied || false,
+    repliedAt: job?.autoReply?.repliedAt,
+    replyMessageId: job?.autoReply?.replyMessageId,
   };
 
-  // Atomic upsert
-  const job = await JobApplication.findOneAndUpdate(
-    { normalizedKey },
-    {
-      $push: { emails: { $each: [newEmail] } },
-      $set: {
-        lastUpdatedFromEmailAt: new Date(),
-        autoReply: autoReplyObject,
-      },
-      // Escalate status if higher priority
-      $max: { status: status },
-      $setOnInsert: {
-        userId,
-        company,
-        role,
-        normalizedKey,
-        interviewSubtype: 'unspecified',
-      },
-    },
-    { new: true, upsert: true }
-  );
+  // Determine if newEmail already exists
+  let emailsToPush = [newEmail];
+  if (job) {
+    const existingIds = new Set(job.emails.map(e => e.messageId));
+    emailsToPush = emailsToPush.filter(e => !existingIds.has(e.messageId));
+  }
 
-  // Update interview subtype if status is interview
-  if (status === "interview" && job.interviewSubtype === "unspecified") {
-    inferredSubtype = inferInterviewSubtypeHeuristic(email);
-    console.log("Inferred subtype:", inferredSubtype, email.subject);
+  // Atomic update 
+  if (emailsToPush.length > 0 || !job) {
+    job = await JobApplication.findOneAndUpdate(
+      { normalizedKey },
+      {
+        $setOnInsert: {
+          userId,
+          company,
+          role,
+          normalizedKey,
+          interviewSubtype: status === 'interview' ? 'unspecified' : undefined,
+        },
+        $push: { emails: { $each: emailsToPush } },
+        $set: {
+          lastUpdatedFromEmailAt: new Date(),
+          autoReply: autoReplyObject,
+        },
+        $max: { status },
+      },
+      { new: true, upsert: true }
+    );
+  } else {
+    // Update status and autoReply even if no new emails
+    job.status = escalateStatus(job.status, status);
+    job.autoReply = autoReplyObject;
+    job.lastUpdatedFromEmailAt = new Date();
+    await job.save();
+  }
 
-    if (inferredSubtype !== "unspecified") {
+  // Update interview subtype if necessary
+  if (status === 'interview' && job.interviewSubtype === 'unspecified') {
+    const inferredSubtype = inferInterviewSubtypeHeuristic(email);
+    if (inferredSubtype !== 'unspecified') {
       job.interviewSubtype = inferredSubtype;
       await job.save();
     }
@@ -73,7 +96,7 @@ async function processJobEmail(userId, email, accessToken) {
     queueAutoReply(job._id);
   }
 
-  // Create EmailLog entry
+  // Create EmailLog for interview or accepted emails
   if (status === 'interview' || status === 'accepted') {
     try {
       await EmailLog.create({
@@ -85,16 +108,14 @@ async function processJobEmail(userId, email, accessToken) {
         date: new Date(email.date),
         company,
         role,
-        interviewSubtype: status === 'interview' ? inferredSubtype : undefined,
+        interviewSubtype: status === 'interview' ? job.interviewSubtype : undefined,
       });
     } catch (err) {
       if (err.code !== 11000) {
         console.error('Error creating EmailLog:', err);
-      } 
+      }
     }
   }
-
-  
 
   return {
     id: email.id,
@@ -105,6 +126,7 @@ async function processJobEmail(userId, email, accessToken) {
     company: job.company,
     role: job.role,
     autoReply: job.autoReply,
+    interviewSubtype: job.interviewSubtype,
   };
 }
 
