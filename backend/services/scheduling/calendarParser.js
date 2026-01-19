@@ -15,4 +15,4 @@ async function getBusyTimes(oauth2Client, timeMin, timeMax, timeZone) {
     return response.data.calendars.primary.busy || [];
 }
 
-modules.exports = { getBusyTimes };
+module.exports = { getBusyTimes };

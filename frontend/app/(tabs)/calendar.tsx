@@ -19,7 +19,8 @@ export default function CalendarScreen() {
 
     const [userName, setUserName] = useState<string>('User');
     const [token, setToken] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [pageLoading, setPageLoading] = useState(true);
+    const [dateLoading, setDateLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [availability, setAvailability] = useState<any[]>([]);
     const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
@@ -48,7 +49,7 @@ export default function CalendarScreen() {
             } catch (err) {
                 console.error('Error fetching user info:', err);
             } finally {
-                setLoading(false);
+                setPageLoading(false);
             }
         };
 
@@ -58,7 +59,7 @@ export default function CalendarScreen() {
     const fetchAvailability = async (date: string) => {
         if (!token) return;
 
-        setLoading(true);
+        setDateLoading(true);
         setAvailability([]);
         setSelectedSlot(null);
 
@@ -78,7 +79,7 @@ export default function CalendarScreen() {
         } catch (err) {
             console.error('Availability fetch failed:', err);
         } finally {
-            setLoading(false);
+            setDateLoading(false);
         }
     };
 
@@ -100,7 +101,7 @@ export default function CalendarScreen() {
         );
     };
 
-    if (loading) {
+    if (pageLoading) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" />
@@ -122,7 +123,7 @@ export default function CalendarScreen() {
                 markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
             />
 
-            {!loading && availability.length > 0 && (
+            {!dateLoading && availability.length > 0 && (
                 <>
                     <Text style={styles.sectionTitle}>Available Times</Text>
                     <FlatList
@@ -154,13 +155,45 @@ export default function CalendarScreen() {
 
 const styles = StyleSheet.create({
     ...sharedStyles,
-    header: { color: '#fff', fontSize: 24, fontWeight: '600', marginBottom: 8 },
-    subheader: { color: '#666', marginBottom: 12 },
-    sectionTitle: { fontSize: 16, fontWeight: '500', marginVertical: 12 },
-    slot: { padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginBottom: 8 },
-    slotSelected: { backgroundColor: '#eef6ff', borderColor: '#3b82f6' },
-    slotText: { fontSize: 15 },
-    confirmation: { marginTop: 16, padding: 12, backgroundColor: '#f0fdf4', borderRadius: 8 },
-    confirmText: { fontSize: 14, fontWeight: '500' },
+    header: { 
+        color: '#fff', 
+        fontSize: 24, 
+        fontWeight: '600', 
+        marginBottom: 8 
+    },
+    subheader: { 
+        color: '#666', 
+        marginBottom: 12 
+    },
+    sectionTitle: { 
+        fontSize: 16, 
+        fontWeight: '500', 
+        marginVertical: 12 
+    },
+    slot: { 
+        padding: 14, 
+        borderRadius: 8, 
+        borderWidth: 1, 
+        borderColor: '#ddd', 
+        marginBottom: 8 
+    },
+    slotSelected: { 
+        backgroundColor: '#eef6ff', 
+        borderColor: '#3b82f6' 
+    },
+    slotText: { 
+        color: '#fff',
+        fontSize: 15 
+    },
+    confirmation: { 
+        marginTop: 16, 
+        padding: 12, 
+        backgroundColor: '#f0fdf4', 
+        borderRadius: 8 
+    },
+    confirmText: { 
+        fontSize: 14, 
+        fontWeight: '500' 
+    },
 });
 
