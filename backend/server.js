@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const googleRoutes = require('./routes/google');
 const emailRoutes = require('./routes/email');
 const userRoutes = require('./routes/user');
+const scheduleRoutes = require('./routes/schedule');
 
 app.use('/', googleRoutes);
 app.use('/auth', authRoutes);
@@ -17,6 +18,7 @@ app.use('/auth/google', googleRoutes);
 app.use('/email', emailRoutes);
 app.use('/user', userRoutes);
 app.use('/calendar', googleRoutes);
+app.use('/schedule', scheduleRoutes);
 
 const PORT = process.env.PORT;
 

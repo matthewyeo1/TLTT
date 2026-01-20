@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
+import SchedulingPicker from "./schedule";
 import { FETCH_USER_INFO_URL, FETCH_INTERVIEW_EMAILS_URL } from "../../constants/api";
 
 type Logs = {
@@ -35,6 +36,9 @@ export default function MenuScreen() {
   const [logs, setLogs] = useState<Logs[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
 
+  // Tracks which notification has an active schedule
+  const [expandedSchedules, setExpandedSchedules] = useState<{ [logId: string]: string | null }>({});
+
   // Fetch user info on mount
   useEffect(() => {
     const fetchUser = async () => {
@@ -52,7 +56,7 @@ export default function MenuScreen() {
         if (!res.ok) throw new Error(`Failed to fetch user info: ${res.status}`);
 
         const data = await res.json();
-        setUserName(data.name || data.email || "User"); 
+        setUserName(data.name || data.email || "User");
       } catch (err) {
         console.error("Error fetching user info:", err);
       } finally {
@@ -94,6 +98,30 @@ export default function MenuScreen() {
     router.replace("/(auth)/login");
   };
 
+  // Initialize schedule for a given log
+  const initSchedule = async (logId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const res = await fetch(`/schedule/init`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ emailLogId: logId }),
+      });
+
+      if (!res.ok) throw new Error(`Failed to init schedule: ${res.status}`);
+      const data = await res.json();
+
+      setExpandedSchedules(prev => ({ ...prev, [logId]: data.scheduleId }));
+    } catch (err) {
+      console.error("Failed to start schedule:", err);
+    }
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -109,12 +137,12 @@ export default function MenuScreen() {
           <Text style={styles.title}>Welcome, {userName} 👋</Text>
         </View>
         <View style={styles.topIcons}>
-          <Pressable style={styles.iconButton} 
+          <Pressable style={styles.iconButton}
             onPress={() => router.push("/calendar")} >
             <Ionicons name="calendar" size={28} color="#fff" />
           </Pressable>
 
-          <Pressable style={styles.iconButton} 
+          <Pressable style={styles.iconButton}
             onPress={() => router.push("/settings")} >
             <Ionicons name="settings-outline" size={28} color="#fff" />
           </Pressable>
@@ -139,22 +167,45 @@ export default function MenuScreen() {
           <Text style={styles.empty}>No action required</Text>
         ) : (
           // Render non-pressable items and keep them at the top
-          <View style={styles.notificationsList}>
-            {logs.map(n => (
-              <View
-                key={n._id}
-                style={styles.notificationItem}
-              >
-                <Text style={styles.notificationType}>
-                  {formatNotificationType(n.status, n.interviewSubtype)}
-                </Text>
+          <View style={styles.notificationsBox}>
+            <Text style={styles.notificationsTitle}>Actions</Text>
 
-                <Text style={styles.notificationText}>
-                  {n.company} — {n.role}
-                </Text>
+            {loadingLogs ? (
+              <Text style={styles.empty}>Loading…</Text>
+            ) : logs.length === 0 ? (
+              <Text style={styles.empty}>No action required</Text>
+            ) : (
+              <View style={styles.notificationsList}>
+                {logs.map((n) => {
+                  const scheduleId = expandedSchedules[n._id];
+                  const showScheduler = !!scheduleId;
+
+                  const isActionable = n.status === "interview" && n.interviewSubtype === "schedule_interview";
+
+                  return (
+                    <View key={n._id} style={styles.notificationItem}>
+                      <Text style={styles.notificationType}>
+                        {formatNotificationType(n.status, n.interviewSubtype)}
+                      </Text>
+
+                      <Text style={styles.notificationText}>
+                        {n.company} — {n.role}
+                      </Text>
+                      {isActionable && !showScheduler && (
+                        <Pressable style={styles.button} onPress={() => initSchedule(n._id)}>
+                          <Text style={styles.buttonText}>Schedule Interview</Text>
+                        </Pressable>
+                      )}
+                      {showScheduler && scheduleId && (
+                        <SchedulingPicker scheduleId={scheduleId} />
+                      )}
+                    </View>
+                  );
+                })}
               </View>
-            ))}
+            )}
           </View>
+
         )}
       </View>
 
