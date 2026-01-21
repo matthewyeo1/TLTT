@@ -13,11 +13,6 @@ const ScheduledSchema = new mongoose.Schema({
         index: true,
     },
 
-    threadId: {
-        type: String,
-        required: true,
-    },
-
     company: String,
     role: String,
 

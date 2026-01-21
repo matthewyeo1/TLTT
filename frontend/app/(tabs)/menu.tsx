@@ -6,7 +6,11 @@ import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
 import SchedulingPicker from "./schedule";
-import { FETCH_USER_INFO_URL, FETCH_INTERVIEW_EMAILS_URL } from "../../constants/api";
+import { 
+  FETCH_USER_INFO_URL, 
+  FETCH_INTERVIEW_EMAILS_URL,
+  INIT_SCHEDULE_INTERVIEW_URL 
+} from "../../constants/api";
 
 type Logs = {
   _id: string;
@@ -104,16 +108,24 @@ export default function MenuScreen() {
       const token = await getToken();
       if (!token) return;
 
-      const res = await fetch(`/schedule/init`, {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      const res = await fetch(`${INIT_SCHEDULE_INTERVIEW_URL}`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ emailLogId: logId }),
+        body: JSON.stringify({ 
+          emailId: logId,
+          timezone: timezone 
+        }),
       });
 
-      if (!res.ok) throw new Error(`Failed to init schedule: ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Init schedule failed: ${res.status} ${text}`);
+      }
       const data = await res.json();
 
       setExpandedSchedules(prev => ({ ...prev, [logId]: data.scheduleId }));

@@ -8,3 +8,4 @@ export const CHANGE_GMAIL_URL = `${BASE_URL}/auth/update`;
 export const PROTECTED_ROUTE = `${BASE_URL}/auth/protected`;
 export const FETCH_INTERVIEW_EMAILS_URL = `${BASE_URL}/email/logs`;
 export const FETCH_CALENDAR_EVENTS_URL = `${BASE_URL}/calendar/availability`;
+export const INIT_SCHEDULE_INTERVIEW_URL = `${BASE_URL}/schedule/init`;

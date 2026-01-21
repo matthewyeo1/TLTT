@@ -28,7 +28,7 @@ router.post('/init', authMiddleware, async (req, res) => {
         }
 
         const schedule = await Scheduled.create({
-            user: req.user.id,
+            userId: req.user.id,
             emailId,
             timezone,
             status: 'pending',
@@ -95,7 +95,7 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
         schedule.confirmedStart = start;
         schedule.confirmedEnd = end;
         schedule.timezone = timezone;
-        schedule.status = 'confirmed';
+        schedule.status = 'scheduled';
 
         await schedule.save();
 
