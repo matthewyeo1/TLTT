@@ -34,7 +34,7 @@ router.post('/init', authMiddleware, async (req, res) => {
             status: 'pending',
         });
 
-        res.status(201).json({ scheduleId: schedule._id });
+        res.status(201).json({ _id: schedule._id });
     } catch (err) {
         console.error('Schedule init failed:', err);
         res.status(500).json({ error: 'Failed to initialize schedule' });

@@ -12,7 +12,7 @@ import { Calendar } from 'react-native-calendars';
 import { getToken } from '../../utils/token';
 import { useRouter } from 'expo-router';
 import { sharedStyles } from '../styles/shared_styles';
-import { FETCH_USER_INFO_URL, FETCH_CALENDAR_EVENTS_URL } from '../../constants/api';
+import { FETCH_USER_INFO_URL } from '../../constants/api';
 
 export default function CalendarScreen() {
     const router = useRouter();

@@ -5,8 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
-import SchedulingPicker from "./schedule";
 import { 
+  BASE_URL,
   FETCH_USER_INFO_URL, 
   FETCH_INTERVIEW_EMAILS_URL,
   INIT_SCHEDULE_INTERVIEW_URL 
@@ -127,8 +127,8 @@ export default function MenuScreen() {
         throw new Error(`Init schedule failed: ${res.status} ${text}`);
       }
       const data = await res.json();
+      router.push(`/schedule/${data._id}`);
 
-      setExpandedSchedules(prev => ({ ...prev, [logId]: data.scheduleId }));
     } catch (err) {
       console.error("Failed to start schedule:", err);
     }
@@ -171,55 +171,39 @@ export default function MenuScreen() {
       </View>
 
       <View style={styles.notificationsBox}>
-        <Text style={styles.notificationsTitle}>Actions</Text>
+  <Text style={styles.notificationsTitle}>Actions</Text>
 
-        {loadingLogs ? (
-          <Text style={styles.empty}>Loading…</Text>
-        ) : logs.length === 0 ? (
-          <Text style={styles.empty}>No action required</Text>
-        ) : (
-          // Render non-pressable items and keep them at the top
-          <View style={styles.notificationsBox}>
-            <Text style={styles.notificationsTitle}>Actions</Text>
+  {loadingLogs ? (
+    <Text style={styles.empty}>Loading…</Text>
+  ) : logs.length === 0 ? (
+    <Text style={styles.empty}>No action required</Text>
+  ) : (
+    <View style={styles.notificationsList}>
+      {logs.map((n) => {
+        const isActionable = n.status === "interview" && n.interviewSubtype === "schedule_interview";
 
-            {loadingLogs ? (
-              <Text style={styles.empty}>Loading…</Text>
-            ) : logs.length === 0 ? (
-              <Text style={styles.empty}>No action required</Text>
-            ) : (
-              <View style={styles.notificationsList}>
-                {logs.map((n) => {
-                  const scheduleId = expandedSchedules[n._id];
-                  const showScheduler = !!scheduleId;
+        return (
+          <View key={n._id} style={styles.notificationItem}>
+            <Text style={styles.notificationType}>
+              {formatNotificationType(n.status, n.interviewSubtype)}
+            </Text>
 
-                  const isActionable = n.status === "interview" && n.interviewSubtype === "schedule_interview";
+            <Text style={styles.notificationText}>
+              {n.company} — {n.role}
+            </Text>
 
-                  return (
-                    <View key={n._id} style={styles.notificationItem}>
-                      <Text style={styles.notificationType}>
-                        {formatNotificationType(n.status, n.interviewSubtype)}
-                      </Text>
-
-                      <Text style={styles.notificationText}>
-                        {n.company} — {n.role}
-                      </Text>
-                      {isActionable && !showScheduler && (
-                        <Pressable style={styles.button} onPress={() => initSchedule(n._id)}>
-                          <Text style={styles.buttonText}>Schedule Interview</Text>
-                        </Pressable>
-                      )}
-                      {showScheduler && scheduleId && (
-                        <SchedulingPicker scheduleId={scheduleId} />
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
+            {isActionable && (
+              <Pressable style={styles.button} onPress={() => initSchedule(n._id)}>
+                <Text style={styles.buttonText}>Schedule Interview</Text>
+              </Pressable>
             )}
           </View>
+        );
+      })}
+    </View>
+  )}
+</View>
 
-        )}
-      </View>
 
       <Pressable
         style={styles.bottomButton}
