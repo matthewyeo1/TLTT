@@ -70,6 +70,16 @@ const JobApplicationSchema = new mongoose.Schema(
             replyMessageId: {
                 type: String,
             },
+            // Prevent duplicate processing of same job
+            processingLock: {
+                type: String,
+                default: null,
+                index: {
+                unique: true,
+                partialFilterExpression: { processingLock: { $type: 'string' } }
+                }
+            },
+            processingStartedAt: Date
         },
     },
     { timestamps: true }

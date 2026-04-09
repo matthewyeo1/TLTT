@@ -1,8 +1,14 @@
 const JobApplication = require('../../models/JobApplication');
 const EmailLog = require('../../models/EmailLog');
-const { isNoReply, inferInterviewSubtypeHeuristic, classifyStatus } = require('./classifier');
+const { 
+  isNoReply, 
+  inferInterviewSubtypeHeuristic, 
+  classifyStatus
+} = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
+const { classifyEmail } = require('../model/model')
+const { ClassificationCache } = require('../cache/databaseCache');
 
 const STATUS_PRIORITY = {
   pending: 0,
@@ -11,15 +17,158 @@ const STATUS_PRIORITY = {
   accepted: 3,
 };
 
+// Instantiate in-memory cache with 60 minute TTL
+const classificationCache = new ClassificationCache(60);
+
+// Fallback rule-based classifier should model fail
+function getRuleBasedClassification(email) {
+  const status = classifyStatus(email);
+  const company = extractCompany(email.sender);
+  const role = extractRole(email.subject);
+  
+  console.log(`[Rules] Classified as ${status} for: ${email.subject?.substring(0, 50)}`);
+  
+  return {
+    status,
+    company,
+    role,
+    source: 'rules'
+  };
+}
+
+// Cache lookup for existing email classification
+async function getExistingClassification(email) {
+  try {
+    const job = await JobApplication.findOne({
+      'emails.messageId': email.id
+    });
+    
+    if (job) {
+      const existingEmail = job.emails.find(e => e.messageId === email.id);
+      if (existingEmail) {
+        console.log(`[DB Cache] Found existing classification for: ${email.subject?.substring(0, 50)}`);
+        return {
+          status: existingEmail.inferredStatus,
+          company: job.company,
+          role: job.role,
+          source: 'database'
+        };
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('[DB Cache] Error checking existing email:', err.message);
+    return null;
+  }
+}
+
+// Save tokens if tell-tale signs are detected
+function shouldSkipLLM(email) {
+  const text = `${email.subject} ${email.snippet}`.toLowerCase();
+  
+  if (text.includes('thank you for applying') ||
+      text.includes('application received') ||
+      text.includes('we have received your application') ||
+      text.includes('confirmation of your application') ||
+      text.includes('your application has been submitted')) {
+    console.log(`[Skip LLM] Application confirmation: ${email.subject?.substring(0, 50)}`);
+    return { skip: true, reason: 'confirmation' };
+  }
+  
+  if (text.includes('newsletter') ||
+      text.includes('unsubscribe') ||
+      text.includes('marketing') ||
+      text.includes('promotion')) {
+    console.log(`[Skip LLM] Marketing/newsletter: ${email.subject?.substring(0, 50)}`);
+    return { skip: true, reason: 'marketing' };
+  }
+  
+  if (text.includes('purchase') ||
+      text.includes('order confirmed') ||
+      text.includes('shipping') ||
+      text.includes('receipt')) {
+    console.log(`[Skip LLM] Non-job email: ${email.subject?.substring(0, 50)}`);
+    return { skip: true, reason: 'non-job' };
+  }
+  
+  const noReplyDomains = ['noreply', 'no-reply', 'donotreply', 'notifications', 'alerts'];
+  const senderLower = email.sender.toLowerCase();
+  if (noReplyDomains.some(domain => senderLower.includes(domain))) {
+    if (!text.includes('unfortunately') && !text.includes('regret') && 
+        !text.includes('interview') && !text.includes('offer')) {
+      console.log(`[Skip LLM] No-reply sender without decision keywords: ${email.subject?.substring(0, 50)}`);
+      return { skip: true, reason: 'noreply' };
+    }
+  }
+  
+  return { skip: false };
+}
+
+// Email classification using LLM
+async function getEmailClassification(email) {
+  const cached = classificationCache.get(email);
+  if (cached) {
+    return cached;
+  }
+  
+  const dbCached = await getExistingClassification(email);
+  if (dbCached) {
+    classificationCache.set(email, dbCached);
+    return dbCached;
+  }
+  
+  const skipCheck = shouldSkipLLM(email);
+  if (skipCheck.skip) {
+    const ruleResult = getRuleBasedClassification(email);
+    classificationCache.set(email, ruleResult);
+    return ruleResult;
+  }
+  
+  try {
+    console.log(`[LLM] Classifying new email: ${email.subject?.substring(0, 50)}`);
+    
+    const llmResult = await classifyEmail({
+      subject: email.subject,
+      snippet: email.snippet,
+      sender: email.sender
+    });
+    
+    const result = {
+      status: llmResult.status,
+      company: llmResult.company,
+      role: llmResult.role,
+      source: 'llm'
+    };
+    
+    classificationCache.set(email, result);
+    
+    console.log(`[LLM] Classified as ${result.status} for: ${email.subject?.substring(0, 50)}`);
+    return result;
+    
+  } catch (err) {
+    console.log(`[LLM] Error: ${err.message}. Falling back to rules for: ${email.subject?.substring(0, 50)}`);
+    
+    const ruleResult = getRuleBasedClassification(email);
+    classificationCache.set(email, ruleResult);
+    return ruleResult;
+  }
+}
+
 // Replaces current status with the new one if it has higher priority
 function escalateStatus(current, incoming) {
   return STATUS_PRIORITY[incoming] > STATUS_PRIORITY[current] ? incoming : current;
 }
 
+// Process job email via pipeline
 async function processJobEmail(userId, email) {
-  const status = classifyStatus(email);
-  const company = extractCompany(email.sender);
-  const role = extractRole(email.subject);
+  const classification = await getEmailClassification(email);
+  const status = classification.status;
+  const company = classification.company;
+  const role = classification.role;
+  
+  console.log(`[Process] Using ${classification.source.toUpperCase()} - Status: ${status}, Company: ${company}, Role: ${role}`);
+
   const isRejected = status === 'rejected';
   const eligibleForAutoReply = isRejected && !isNoReply(email.sender);
   const emailDate = new Date(email.date);
@@ -140,6 +289,7 @@ async function processJobEmail(userId, email) {
     role: job.role,
     autoReply: job.autoReply,
     interviewSubtype: job.interviewSubtype,
+    classifiedBy: classification.source,
   };
 }
 

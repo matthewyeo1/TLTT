@@ -2,6 +2,8 @@ const User = require('../../models/User');
 const { google } = require('googleapis');
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../../constants/googleAPIs');
 
+EXPIRY_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
 async function sendReply({ to, threadId, body, accessToken, refreshToken, expiryDate, userId }) {
     const SAFE_RECIPIENT = 'yeomatthew61@gmail.com';
 
@@ -37,7 +39,7 @@ async function sendReply({ to, threadId, body, accessToken, refreshToken, expiry
 
             await User.findByIdAndUpdate(userId, {
                 'gmail.accessToken': accessToken,
-                'gmail.expiryDate': Date.now() + 60 * 60 * 1000, // 1 hour expiry
+                'gmail.expiryDate': Date.now() + EXPIRY_DURATION, 
             });
         }
     }
