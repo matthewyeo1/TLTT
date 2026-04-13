@@ -16,6 +16,7 @@ const {
 const { cleanEmailBody } = require('../services/filtering/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
+const { fetchMessagesInBatches } = require('../services/batching/batcher');
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
     const text = `${subject} ${snippet}`.toLowerCase();
@@ -79,7 +80,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         // Query structure
         const listRes = await gmail.users.messages.list({
             userId: 'me',
-            maxResults: 500,
+            maxResults: 50,
             q: `
         (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
         OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
@@ -97,17 +98,9 @@ router.get('/job', authMiddleware, async (req, res) => {
             return res.json([]);
         }
 
-        // Step 2: Fetch metadata in parallel
-        const metadataResponses = await Promise.all(
-            messages.map(msg =>
-                gmail.users.messages.get({
-                    userId: 'me',
-                    id: msg.id,
-                    format: 'metadata',
-                    metadataHeaders: ['Subject', 'From', 'Date'],
-                })
-            )
-        );
+        // Step 2: Fetch & batch-process metadata in parallel, fetch top 20 emails
+        const messageIds = messages.slice(0, 50).map(msg => msg.id);
+        const metadataResponses = await fetchMessagesInBatches(gmail, messageIds);
 
         // Step 3: Filter + prepare candidates
         const candidates = [];

@@ -1,7 +1,7 @@
 class ClassificationCache {
   constructor(ttlMinutes = 60) {
     this.cache = new Map();
-    this.ttl = ttlMinutes * 60 * 1000;
+    this.ttl = ttlMinutes * 60 * 1000; // 1 hour TTL
     this.hits = 0;
     this.misses = 0;
   }
