@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { DateTime } from "luxon";
 import { sharedStyles } from "../styles/shared_styles";
 import { removeToken, getToken } from "../../utils/token";
 import { clearEmailCache } from "../../services/emailCache";
-import { 
+import {
   BASE_URL,
-  FETCH_USER_INFO_URL, 
+  FETCH_USER_INFO_URL,
   FETCH_INTERVIEW_EMAILS_URL,
-  INIT_SCHEDULE_INTERVIEW_URL 
+  INIT_SCHEDULE_INTERVIEW_URL
 } from "../../constants/api";
 
 type Logs = {
@@ -19,6 +20,23 @@ type Logs = {
   status: "interview" | "accepted";
   interviewSubtype?: "online_assessment" | "schedule_interview" | "unspecified";
   updatedAt: string;
+  scheduling?: {
+    scheduleId: string;
+    status: "pending" | "scheduled" | "cancelled";
+    timezone?: string;
+    selectedSlot?: {
+      start?: string;
+      end?: string;
+    };
+    calendarEventId?: string;
+  } | null;
+};
+
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  reauthUrl?: string;
+  connectUrl?: string;
 };
 
 function formatNotificationType(status: Logs["status"], subtype?: Logs["interviewSubtype"]) {
@@ -32,6 +50,30 @@ function formatNotificationType(status: Logs["status"], subtype?: Logs["intervie
 
   return "";
 }
+
+const buildErrorMessage = (payload?: ApiErrorPayload, fallback?: string) => {
+  const baseMessage = payload?.error || payload?.message || fallback || "Something went wrong.";
+  const actionUrl = payload?.reauthUrl || payload?.connectUrl;
+
+  if (actionUrl) {
+    return `${baseMessage}\n\nReconnect Google here:\n${actionUrl}`;
+  }
+
+  return baseMessage;
+};
+
+const formatScheduledSlot = (
+  start?: string,
+  end?: string,
+  timezone?: string
+) => {
+  if (!start || !end) return null;
+
+  const startTime = DateTime.fromISO(start).toLocal();
+  const endTime = DateTime.fromISO(end).toLocal();
+
+  return `${startTime.toFormat("DDD")} • ${startTime.toFormat("hh:mm a")} - ${endTime.toFormat("hh:mm a")} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`;
+};
 
 export default function MenuScreen() {
 
@@ -106,7 +148,11 @@ export default function MenuScreen() {
   const initSchedule = async (logId: string) => {
     try {
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        Alert.alert("Session expired", "Please log in again.");
+        router.replace("/(auth)/login");
+        return;
+      }
 
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -116,21 +162,48 @@ export default function MenuScreen() {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           emailId: logId,
-          timezone: timezone 
+          timezone: timezone
         }),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Init schedule failed: ${res.status} ${text}`);
+      const rawText = await res.text();
+      let data: ApiErrorPayload & { _id?: string } = {};
+
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { message: rawText };
+        }
       }
-      const data = await res.json();
+
+      if (!res.ok) {
+        const message = buildErrorMessage(
+          data,
+          `Failed to start schedule (${res.status}).`
+        );
+        Alert.alert("Unable to start scheduling", message);
+        throw new Error(message);
+      }
+
+      if (!data._id) {
+        throw new Error("Schedule was created without an id.");
+      }
+
       router.push(`/schedule/${data._id}`);
 
     } catch (err) {
       console.error("Failed to start schedule:", err);
+      if (err instanceof Error && err.message !== "Schedule was created without an id.") {
+        return;
+      }
+
+      Alert.alert(
+        "Unable to start scheduling",
+        err instanceof Error ? err.message : "Please try again."
+      );
     }
   };
 
@@ -192,9 +265,21 @@ export default function MenuScreen() {
               {n.company} — {n.role}
             </Text>
 
+            {n.scheduling?.status === "scheduled" && (
+              <Text style={styles.scheduledText}>
+                Scheduled: {formatScheduledSlot(
+                  n.scheduling.selectedSlot?.start,
+                  n.scheduling.selectedSlot?.end,
+                  n.scheduling.timezone
+                )}
+              </Text>
+            )}
+
             {isActionable && (
               <Pressable style={styles.button} onPress={() => initSchedule(n._id)}>
-                <Text style={styles.buttonText}>Schedule Interview</Text>
+                <Text style={styles.buttonText}>
+                  {n.scheduling?.status === "scheduled" ? "Reschedule Interview" : "Schedule Interview"}
+                </Text>
               </Pressable>
             )}
           </View>
@@ -310,5 +395,10 @@ const styles = StyleSheet.create({
   notificationText: {
     fontSize: 15,
     color: "#fff",
+  },
+  scheduledText: {
+    fontSize: 13,
+    color: "#10b981",
+    marginTop: 6,
   },
 });

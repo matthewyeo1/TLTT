@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { DateTime } from "luxon";
@@ -14,6 +15,32 @@ import { useLocalSearchParams, router } from "expo-router";
 import { getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
 import { FETCH_CALENDAR_AVAILABILITY_URL } from "../../constants/api";
+
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  reauthUrl?: string;
+  connectUrl?: string;
+};
+
+const buildErrorMessage = (
+  payload?: ApiErrorPayload,
+  fallback?: string,
+  status?: number
+) => {
+  const baseMessage = payload?.error || payload?.message || fallback || "Something went wrong.";
+  const actionUrl = payload?.reauthUrl || payload?.connectUrl;
+
+  if (status === 403 && actionUrl) {
+    return `${baseMessage}\n\nReconnect Google here:\n${actionUrl}`;
+  }
+
+  if (actionUrl) {
+    return `${baseMessage}\n\nMore info:\n${actionUrl}`;
+  }
+
+  return baseMessage;
+};
 
 export default function ScheduleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,16 +70,38 @@ export default function ScheduleScreen() {
 
     try {
       const token = await getToken();
-      if (!token) throw new Error("No token found");
+      if (!token) {
+        Alert.alert("Session expired", "Please log in again.");
+        router.replace("/(auth)/login");
+        return;
+      }
 
       const res = await fetch(
         `${FETCH_CALENDAR_AVAILABILITY_URL}/${id}/availability?start=${start}&end=${end}&timezone=${timezone}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (!res.ok) throw new Error(`Failed to fetch availability: ${res.status}`);
+      const rawText = await res.text();
+      let data: ApiErrorPayload & { availability?: any[] } = {};
 
-      const data = await res.json();
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { message: rawText };
+        }
+      }
+
+      if (!res.ok) {
+        const fallback =
+          res.status === 403
+            ? "Google Calendar access is unavailable. Please reconnect your Google account and try again."
+            : `Failed to fetch availability (${res.status}).`;
+        const message = buildErrorMessage(data, fallback, res.status);
+        Alert.alert("Unable to load availability", message);
+        throw new Error(message);
+      }
+
       setAvailability(data.availability || []);
     } catch (err) {
       console.error("Availability fetch failed:", err);
@@ -66,7 +115,11 @@ export default function ScheduleScreen() {
 
     try {
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        Alert.alert("Session expired", "Please log in again.");
+        router.replace("/(auth)/login");
+        return;
+      }
 
       const res = await fetch(
         `${FETCH_CALENDAR_AVAILABILITY_URL}/${id}/confirm`,
@@ -84,12 +137,31 @@ export default function ScheduleScreen() {
         }
       );
 
-      if (!res.ok) throw new Error(`Failed to confirm slot: ${res.status}`);
-      alert("Interview scheduled successfully!");
+      const rawText = await res.text();
+      let data: ApiErrorPayload = {};
+
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { message: rawText };
+        }
+      }
+
+      if (!res.ok) {
+        const fallback =
+          res.status === 403
+            ? "Google Calendar access is unavailable. Please reconnect your Google account and try again."
+            : `Failed to confirm slot (${res.status}).`;
+        const message = buildErrorMessage(data, fallback, res.status);
+        Alert.alert("Unable to schedule interview", message);
+        throw new Error(message);
+      }
+
+      Alert.alert("Success", "Interview scheduled successfully!");
       router.replace("/(tabs)/menu");
     } catch (err) {
       console.error("Confirm slot failed:", err);
-      alert("Failed to schedule interview.");
     }
   };
 
@@ -122,6 +194,17 @@ export default function ScheduleScreen() {
           }}
           markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
           style={{ marginBottom: 12 }}
+          theme={{
+              backgroundColor: "#000",
+              calendarBackground: "#000",
+              dayTextColor: "#fff",
+              monthTextColor: "#fff",
+              textDisabledColor: "#555",
+              arrowColor: "#fff",
+              todayTextColor: "#10b981",
+              selectedDayBackgroundColor: "#2563eb",  // Add this
+              selectedDayTextColor: "#ffffff",        // Add this
+          }}
         />
 
         {loading && <ActivityIndicator size="large" style={{ marginBottom: 12 }} />}
@@ -132,20 +215,7 @@ export default function ScheduleScreen() {
             <FlatList
               data={availability}
               keyExtractor={(item) => item.start}
-              renderItem={({ item }) => {
-                const isSelected = selectedSlot?.start === item.start;
-                return (
-                  <Pressable
-                    style={[styles.slot, isSelected && styles.slotSelected]}
-                    onPress={() => setSelectedSlot(item)}
-                  >
-                    <Text style={styles.slotText}>
-                      {DateTime.fromISO(item.start).toFormat("hh:mm a")} –{" "}
-                      {DateTime.fromISO(item.end).toFormat("hh:mm a")}
-                    </Text>
-                  </Pressable>
-                );
-              }}
+              renderItem={renderSlot}
               style={{ marginBottom: 12 }}
             />
           </>
@@ -180,7 +250,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 80, // leave space for fixed back button
+    paddingBottom: 80,
   },
   header: {
     color: "#fff",

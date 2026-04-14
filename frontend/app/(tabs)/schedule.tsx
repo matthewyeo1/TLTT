@@ -123,7 +123,24 @@ export default function SchedulingPicker({ scheduleId }: Props) {
                     setSelectedDate(day.dateString);
                     fetchAvailability(day.dateString);
                 }}
-                markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
+                markedDates={selectedDate ? { 
+                    [selectedDate]: { 
+                        selected: true, 
+                        selectedColor: "#2563eb"
+                    } 
+                } : {}}
+                style={{ marginBottom: 12 }}
+                theme={{
+                    backgroundColor: "#000",
+                    calendarBackground: "#000",
+                    dayTextColor: "#fff",
+                    monthTextColor: "#fff",
+                    textDisabledColor: "#555",
+                    arrowColor: "#fff",
+                    todayTextColor: "#10b981",
+                    selectedDayBackgroundColor: "#2563eb", 
+                    selectedDayTextColor: "#ffffff",        
+                }}
             />
 
             {!dateLoading && availability.length > 0 && (
