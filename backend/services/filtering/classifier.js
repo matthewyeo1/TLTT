@@ -11,8 +11,47 @@ function isNoReply(sender) {
     );
 }
 
+function isApplicationConfirmation(text) {
+  return (
+    text.includes('thank you for applying') ||
+    text.includes('application received') ||
+    text.includes('we have received your application') ||
+    text.includes('your application has been submitted') ||
+    text.includes('confirmation of your application')
+  );
+}
+
+function inferInterviewSubtypeHeuristic(email) {
+  const text = `${email.subject} ${email.snippet}`.toLowerCase();
+
+  if (
+    text.includes('coding challenge') ||
+    text.includes('assessment') ||
+    text.includes('hackerrank') ||
+    text.includes('kattis') ||
+    text.includes('take at your convenience')
+  ) {
+    return 'online_assessment';
+  }
+
+  if (
+    text.includes('availability') ||
+    text.includes('schedule') ||
+    text.includes('calendar') ||
+    text.includes('time works for you')
+  ) {
+    return 'schedule_interview';
+  }
+
+  return 'unspecified';
+}
+
 function classifyStatus(email) {
   const text = `${email.subject} ${email.snippet}`.toLowerCase();
+
+  if (isApplicationConfirmation(text)) {
+    return 'pending';
+  }
 
   if (
     text.includes('unfortunately') ||
@@ -46,4 +85,4 @@ function classifyStatus(email) {
   return 'pending';
 }
 
-module.exports = { isNoReply, classifyStatus };
+module.exports = { isNoReply, inferInterviewSubtypeHeuristic, classifyStatus };

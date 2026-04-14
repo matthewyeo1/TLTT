@@ -9,6 +9,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getToken } from "../../utils/token";
 import { sharedStyles } from "../styles/shared_styles";
+import { FETCH_EMAILS_URL } from "../../constants/api";
 
 type EmailDetail = {
     id: string;
@@ -29,7 +30,7 @@ export default function EmailDetailScreen() {
             try {
                 const token = await getToken();
                 const res = await fetch(
-                    `https://unsensualized-nicolle-unmistrustfully.ngrok-free.dev/email/${id}`,
+                    `${FETCH_EMAILS_URL}/${id}`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -74,16 +75,17 @@ export default function EmailDetailScreen() {
       </ScrollView>
 
       <Pressable
-        style={styles.backButton}
+        style={[styles.button, { marginTop: 145 }]}
         onPress={() => router.back()}
       >
-        <Text style={styles.backButtonText}>Back to Emails</Text>
+        <Text style={styles.buttonText}>Back to Emails</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+    ...sharedStyles,
     container: {
         padding: 50,
         backgroundColor: "#000",
@@ -120,14 +122,4 @@ const styles = StyleSheet.create({
         padding: 16,
         textAlign: "center",
     },
-    backButton: {
-        position: "absolute",
-        bottom: 24,
-        alignSelf: "center",
-        backgroundColor: "#222",
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 12,
-    },
-    backButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
 });

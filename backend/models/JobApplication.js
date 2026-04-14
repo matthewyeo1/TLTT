@@ -32,6 +32,13 @@ const JobApplicationSchema = new mongoose.Schema(
             default: 'pending',
         },
 
+        interviewSubtype: {
+            type: String,
+            enum: ['online_assessment', 'schedule_interview', 'unspecified'],
+            default: 'unspecified',
+            index: true,
+        },
+
         lastUpdatedFromEmailAt: Date,
 
         emails: [
@@ -63,6 +70,16 @@ const JobApplicationSchema = new mongoose.Schema(
             replyMessageId: {
                 type: String,
             },
+            // Prevent duplicate processing of same job
+            processingLock: {
+                type: String,
+                default: null,
+                index: {
+                unique: true,
+                partialFilterExpression: { processingLock: { $type: 'string' } }
+                }
+            },
+            processingStartedAt: Date
         },
     },
     { timestamps: true }

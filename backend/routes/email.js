@@ -2,6 +2,7 @@ const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
 const EmailLog = require('../models/EmailLog');
+const Scheduled = require('../models/Scheduled');
 const authMiddleware = require('../middleware/auth');
 const { processJobEmail, actionable } = require('../services/filtering/pipeline');
 const {
@@ -16,6 +17,7 @@ const {
 const { cleanEmailBody } = require('../services/filtering/parser');
 const router = express.Router();
 const { GMAIL_SCOPES, GMAIL_CALLBACK_URL } = require('../constants/googleAPIs');
+const { fetchMessagesInBatches } = require('../services/batching/batcher');
 
 function isJobRelated(subject, snippet, senderEmail, userEmail) {
     const text = `${subject} ${snippet}`.toLowerCase();
@@ -36,6 +38,7 @@ function isJobRelated(subject, snippet, senderEmail, userEmail) {
     return !hasNegative && hasPositive && !isFromUser && !isBlacklisted && hasCompanyAndRole;
 }
 
+// Display jobs in activity page
 router.get('/job', authMiddleware, async (req, res) => {
     let user;
 
@@ -76,10 +79,10 @@ router.get('/job', authMiddleware, async (req, res) => {
 
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-        // Query structure
+        // Step 1: List messages matching job-related criteria from last 60 days
         const listRes = await gmail.users.messages.list({
             userId: 'me',
-            maxResults: 500,
+            maxResults: 50,
             q: `
         (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
         OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
@@ -97,17 +100,9 @@ router.get('/job', authMiddleware, async (req, res) => {
             return res.json([]);
         }
 
-        // Step 2: Fetch metadata in parallel
-        const metadataResponses = await Promise.all(
-            messages.map(msg =>
-                gmail.users.messages.get({
-                    userId: 'me',
-                    id: msg.id,
-                    format: 'metadata',
-                    metadataHeaders: ['Subject', 'From', 'Date'],
-                })
-            )
-        );
+        // Step 2: Fetch & batch-process metadata in parallel, fetch top 20 emails
+        const messageIds = messages.slice(0, 50).map(msg => msg.id);
+        const metadataResponses = await fetchMessagesInBatches(gmail, messageIds);
 
         // Step 3: Filter + prepare candidates
         const candidates = [];
@@ -163,23 +158,75 @@ router.get('/job', authMiddleware, async (req, res) => {
     }
 });
 
+// Fetch email logs with scheduling info for dashboard
 router.get("/logs", authMiddleware, async (req, res) => {
     try {
+        const now = new Date();
+
         const logs = await EmailLog.find({ 
             userId: req.user.id,
             status: { $in: ['interview', 'accepted'] }
         })
         .sort({ lastUpdatedFromEmailAt: -1 })
-        .limit(10)
-        .select('company role status updatedAt lastUpdatedFromEmailAt');
+        .limit(25)
+        .lean();
 
-        res.json(logs);
+        const logIds = logs.map((log) => log._id.toString());
+
+        const schedules = await Scheduled.find({
+            userId: req.user.id,
+            emailId: { $in: logIds },
+            status: 'scheduled',
+            'selectedSlot.end': { $exists: true, $ne: null },
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+
+        const latestScheduleByEmailId = new Map();
+        for (const schedule of schedules) {
+            const emailId = schedule.emailId?.toString();
+            if (!emailId || latestScheduleByEmailId.has(emailId)) continue;
+            latestScheduleByEmailId.set(emailId, schedule);
+        }
+
+        const visibleLogs = logs
+            .filter((log) => {
+                const matchingSchedule = latestScheduleByEmailId.get(log._id.toString());
+                const scheduledEnd = matchingSchedule?.selectedSlot?.end;
+
+                if (!scheduledEnd) return true;
+
+                return new Date(scheduledEnd) > now;
+            })
+            .map((log) => {
+                const matchingSchedule = latestScheduleByEmailId.get(log._id.toString());
+
+                return {
+                    _id: log._id,
+                    company: log.company,
+                    role: log.role,
+                    status: log.status,
+                    interviewSubtype: log.interviewSubtype,
+                    updatedAt: log.updatedAt,
+                    lastUpdatedFromEmailAt: log.lastUpdatedFromEmailAt,
+                    scheduling: matchingSchedule ? {
+                        scheduleId: matchingSchedule._id,
+                        status: matchingSchedule.status,
+                        timezone: matchingSchedule.timezone,
+                        selectedSlot: matchingSchedule.selectedSlot,
+                        calendarEventId: matchingSchedule.calendarEventId,
+                    } : null,
+                };
+            });
+
+        res.json(visibleLogs);
     } catch (err) {
         console.error('Failed to fetch log emails:', err);
         res.status(500).json({ error: 'Failed to fetch log emails' });
     }
 });
 
+// Fetch full email content for activity page
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
