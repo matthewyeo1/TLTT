@@ -1,3 +1,5 @@
+const EmailLog = require('../../models/EmailLog')
+
 function isNoReply(sender) {
     if (!sender) return false;
 
@@ -19,6 +21,16 @@ function isApplicationConfirmation(text) {
     text.includes('your application has been submitted') ||
     text.includes('confirmation of your application')
   );
+}
+
+async function isEmailCancelled(userId, messageId) {
+  const EmailLog = require('../../models/EmailLog');
+  const cancelled = await EmailLog.findOne({
+    userId,
+    messageId,
+    status: 'cancelled'   
+  });
+  return !!cancelled;
 }
 
 // Detect if this is a confirmation/reply email (not a new invitation)
@@ -225,5 +237,6 @@ module.exports = {
   isConfirmationOrReply,
   isReminderEmail,
   isFollowUpConfirmation,
-  shouldCreateEmailLog
+  shouldCreateEmailLog,
+  isEmailCancelled
 };

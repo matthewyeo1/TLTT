@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -41,24 +41,20 @@ type ApiErrorPayload = {
 
 function formatNotificationType(status: Logs["status"], subtype?: Logs["interviewSubtype"]) {
   if (status === "accepted") return "Offer";
-
   if (status === "interview") {
     if (subtype === "online_assessment") return "Online Assessment";
     if (subtype === "schedule_interview") return "Interview Scheduling";
     return "Interview";
   }
-
   return "";
 }
 
 const buildErrorMessage = (payload?: ApiErrorPayload, fallback?: string) => {
   const baseMessage = payload?.error || payload?.message || fallback || "Something went wrong.";
   const actionUrl = payload?.reauthUrl || payload?.connectUrl;
-
   if (actionUrl) {
     return `${baseMessage}\n\nReconnect Google here:\n${actionUrl}`;
   }
-
   return baseMessage;
 };
 
@@ -68,22 +64,16 @@ const formatScheduledSlot = (
   timezone?: string
 ) => {
   if (!start || !end) return null;
-
   const startTime = DateTime.fromISO(start).toLocal();
   const endTime = DateTime.fromISO(end).toLocal();
-
   return `${startTime.toFormat("DDD")} • ${startTime.toFormat("hh:mm a")} - ${endTime.toFormat("hh:mm a")} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`;
 };
 
 export default function MenuScreen() {
-
   const [userName, setUserName] = useState("User");
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<Logs[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
-
-  // Tracks which notification has an active schedule
-  const [expandedSchedules, setExpandedSchedules] = useState<{ [logId: string]: string | null }>({});
 
   // Fetch user info on mount
   useEffect(() => {
@@ -93,14 +83,11 @@ export default function MenuScreen() {
         router.replace("/(auth)/login");
         return;
       }
-
       try {
         const res = await fetch(FETCH_USER_INFO_URL, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!res.ok) throw new Error(`Failed to fetch user info: ${res.status}`);
-
         const data = await res.json();
         setUserName(data.name || data.email || "User");
       } catch (err) {
@@ -109,33 +96,34 @@ export default function MenuScreen() {
         setLoading(false);
       }
     };
-
     fetchUser();
   }, []);
 
-  // Load logs
-  useEffect(() => {
-    const loadNotifications = async () => {
-      const token = await getToken();
-
-      try {
-        const res = await fetch(`${FETCH_INTERVIEW_EMAILS_URL}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Failed to load notifications");
-
-        const data = await res.json();
-        setLogs(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingLogs(false);
-      }
-    };
-
-    loadNotifications();
+  // Load logs – extracted as a reusable function
+  const loadNotifications = useCallback(async () => {
+    setLoadingLogs(true);
+    const token = await getToken();
+    if (!token) {
+      router.replace("/(auth)/login");
+      return;
+    }
+    try {
+      const res = await fetch(FETCH_INTERVIEW_EMAILS_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load notifications");
+      const data = await res.json();
+      setLogs(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingLogs(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   // Logout handler
   const handleLogout = async () => {
@@ -153,58 +141,70 @@ export default function MenuScreen() {
         router.replace("/(auth)/login");
         return;
       }
-
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-      const res = await fetch(`${INIT_SCHEDULE_INTERVIEW_URL}`, {
+      const res = await fetch(INIT_SCHEDULE_INTERVIEW_URL, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          emailId: logId,
-          timezone: timezone
-        }),
+        body: JSON.stringify({ emailId: logId, timezone }),
       });
-
       const rawText = await res.text();
       let data: ApiErrorPayload & { _id?: string } = {};
-
       if (rawText) {
-        try {
-          data = JSON.parse(rawText);
-        } catch {
-          data = { message: rawText };
-        }
+        try { data = JSON.parse(rawText); } catch { data = { message: rawText }; }
       }
-
       if (!res.ok) {
-        const message = buildErrorMessage(
-          data,
-          `Failed to start schedule (${res.status}).`
-        );
+        const message = buildErrorMessage(data, `Failed to start schedule (${res.status}).`);
         Alert.alert("Unable to start scheduling", message);
         throw new Error(message);
       }
-
-      if (!data._id) {
-        throw new Error("Schedule was created without an id.");
-      }
-
+      if (!data._id) throw new Error("Schedule was created without an id.");
       router.push(`/schedule/${data._id}`);
-
     } catch (err) {
       console.error("Failed to start schedule:", err);
-      if (err instanceof Error && err.message !== "Schedule was created without an id.") {
-        return;
-      }
-
+      if (err instanceof Error && err.message !== "Schedule was created without an id.") return;
       Alert.alert(
         "Unable to start scheduling",
         err instanceof Error ? err.message : "Please try again."
       );
     }
+  };
+
+  // Cancel interview handler
+  const cancelInterview = async (scheduleId: string, logId: string) => {
+    Alert.alert(
+      "Cancel Interview",
+      "Are you sure? This action is irreversible and will remove the scheduled interview from your calendar and list.",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await getToken();
+              if (!token) {
+                Alert.alert("Session expired", "Please log in again.");
+                return;
+              }
+              const res = await fetch(`${BASE_URL}/schedule/${scheduleId}/cancel`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) throw new Error("Cancel failed");
+              Alert.alert("Cancelled", "The interview has been cancelled.");
+              // Reload the list
+              loadNotifications();
+            } catch (err) {
+              console.error(err);
+              Alert.alert("Error", "Failed to cancel interview. Please try again.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -222,78 +222,74 @@ export default function MenuScreen() {
           <Text style={styles.title}>Welcome, {userName} 👋</Text>
         </View>
         <View style={styles.topIcons}>
-          <Pressable style={styles.iconButton}
-            onPress={() => router.push("/calendar")} >
+          <Pressable style={styles.iconButton} onPress={() => router.push("/calendar")}>
             <Ionicons name="calendar" size={28} color="#fff" />
           </Pressable>
-
-          <Pressable style={styles.iconButton}
-            onPress={() => router.push("/settings")} >
+          <Pressable style={styles.iconButton} onPress={() => router.push("/settings")}>
             <Ionicons name="settings-outline" size={28} color="#fff" />
           </Pressable>
-
-          <Pressable
-            style={styles.iconButton}
-            onPress={async () => {
-              handleLogout();
-            }}
-          >
+          <Pressable style={styles.iconButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={28} color="#fff" />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.notificationsBox}>
-  <Text style={styles.notificationsTitle}>Actions</Text>
-
-  {loadingLogs ? (
-    <Text style={styles.empty}>Loading…</Text>
-  ) : logs.length === 0 ? (
-    <Text style={styles.empty}>No action required</Text>
-  ) : (
-    <View style={styles.notificationsList}>
-      {logs.map((n) => {
-        const isActionable = n.status === "interview" && n.interviewSubtype === "schedule_interview";
-
-        return (
-          <View key={n._id} style={styles.notificationItem}>
-            <Text style={styles.notificationType}>
-              {formatNotificationType(n.status, n.interviewSubtype)}
-            </Text>
-
-            <Text style={styles.notificationText}>
-              {n.company} — {n.role}
-            </Text>
-
-            {n.scheduling?.status === "scheduled" && (
-              <Text style={styles.scheduledText}>
-                Scheduled: {formatScheduledSlot(
-                  n.scheduling.selectedSlot?.start,
-                  n.scheduling.selectedSlot?.end,
-                  n.scheduling.timezone
-                )}
-              </Text>
-            )}
-
-            {isActionable && (
-              <Pressable style={styles.button} onPress={() => initSchedule(n._id)}>
-                <Text style={styles.buttonText}>
-                  {n.scheduling?.status === "scheduled" ? "Reschedule Interview" : "Schedule Interview"}
-                </Text>
-              </Pressable>
-            )}
+        <Text style={styles.notificationsTitle}>Actions</Text>
+        {loadingLogs ? (
+          <Text style={styles.empty}>Loading…</Text>
+        ) : logs.length === 0 ? (
+          <Text style={styles.empty}>No action required</Text>
+        ) : (
+          <View style={styles.notificationsList}>
+            {logs.map((n) => {
+              const isActionable = n.status === "interview" && n.interviewSubtype === "schedule_interview";
+              const isScheduled = n.scheduling?.status === "scheduled";
+              return (
+                <View key={n._id} style={styles.notificationItem}>
+                  <Text style={[styles.notificationType, isScheduled && styles.scheduledType]}>
+                    {isScheduled
+                      ? "Interview Scheduled"
+                      : formatNotificationType(n.status, n.interviewSubtype)}
+                  </Text>
+                  <Text style={styles.notificationText}>
+                    {n.company} — {n.role}
+                  </Text>
+                  {isScheduled && n.scheduling?.selectedSlot && (
+                    <Text style={[styles.scheduledText]}>
+                      Scheduled: {formatScheduledSlot(
+                        n.scheduling.selectedSlot.start,
+                        n.scheduling.selectedSlot.end,
+                        n.scheduling.timezone
+                      )}
+                    </Text>
+                  )}
+                  {isActionable && (
+                    <Pressable
+                      style={[styles.button, { backgroundColor: "#007bff" }]}
+                      onPress={() => initSchedule(n._id)}
+                    >
+                      <Text style={styles.buttonText}>
+                        {isScheduled ? "Reschedule Interview" : "Schedule Interview"}
+                      </Text>
+                    </Pressable>
+                  )}
+                  {isScheduled && n.scheduling?.scheduleId && (
+                    <Pressable
+                      style={styles.cancelButton}
+                      onPress={() => cancelInterview(n.scheduling!.scheduleId, n._id)}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel Interview</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
           </View>
-        );
-      })}
-    </View>
-  )}
-</View>
+        )}
+      </View>
 
-
-      <Pressable
-        style={styles.bottomButton}
-        onPress={() => router.push("/activity")}
-      >
+      <Pressable style={styles.bottomButton} onPress={() => router.push("/activity")}>
         <Text style={styles.bottomButtonText}>View Activity</Text>
       </Pressable>
     </View>
@@ -392,13 +388,42 @@ const styles = StyleSheet.create({
     color: "#007bff",
     marginBottom: 4,
   },
+  scheduledType: {
+    color: "#007bff", 
+  },
   notificationText: {
     fontSize: 15,
     color: "#fff",
   },
   scheduledText: {
     fontSize: 13,
-    color: "#10b981",
     marginTop: 6,
+    color: "#10b981"
+  },
+  button: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 12,
+    color: "#007bff"
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  cancelButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#dc2626", 
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
   },
 });

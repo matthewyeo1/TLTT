@@ -95,27 +95,8 @@ router.post('/init', authMiddleware, async (req, res) => {
             status: { $in: ['pending', 'scheduled'] },
         });
 
+        // Return existing schedule if found
         if (schedule) {
-            // If exists, delete any calendar event if it was scheduled
-            if (schedule.calendarEventId && schedule.status === 'scheduled') {
-                try {
-                    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-                    await calendar.events.delete({
-                        calendarId: 'primary',
-                        eventId: schedule.calendarEventId,
-                    });
-                } catch (calendarErr) {
-                    console.error('Failed to delete previous calendar event:', calendarErr);
-                }
-            }
-
-            // Reset the existing schedule instead of creating new
-            schedule.status = 'pending';
-            schedule.calendarEventId = undefined;
-            schedule.selectedSlot = undefined;
-            schedule.timezone = timezone;
-            await schedule.save();
-
             return res.status(200).json({ _id: schedule._id, isExisting: true });
         }
 
@@ -352,6 +333,67 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
         console.error('Schedule confirmation failed:', err);
         res.status(500).json({ error: 'Failed to confirm schedule' });
     }
+});
+
+// Cancel interview appointment
+router.delete('/:id/cancel', authMiddleware, async (req, res) => {
+  try {
+    const schedule = await Scheduled.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    if (schedule.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user?.gmail?.refreshToken) {
+      return res.status(403).json({ error: 'Google account not connected' });
+    }
+
+    // 1. Delete calendar event if exists
+    if (schedule.calendarEventId) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        GMAIL_CALLBACK_URL
+      );
+      oauth2Client.setCredentials({
+        access_token: user.gmail.accessToken,
+        refresh_token: user.gmail.refreshToken,
+        expiry_date: user.gmail.expiryDate,
+      });
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      await calendar.events.delete({
+        calendarId: 'primary',
+        eventId: schedule.calendarEventId,
+      });
+    }
+
+    // 2. Delete the Scheduled document
+    await schedule.deleteOne();
+
+    // 3. Update the associated EmailLog to 'cancelled' (instead of deleting)
+    const emailLogId = schedule.emailId || schedule.emailLogId;
+    if (emailLogId) {
+      await EmailLog.updateOne(
+        { _id: emailLogId },
+        {
+          $set: {
+            isActive: false,
+            status: 'cancelled',           // add 'cancelled' to enum if needed
+            'scheduling.status': 'cancelled',
+            cancelledAt: new Date()
+          }
+        }
+      );
+    }
+
+    res.json({ success: true, message: 'Interview cancelled successfully' });
+  } catch (err) {
+    console.error('Cancel interview failed:', err);
+    res.status(500).json({ error: 'Failed to cancel interview' });
+  }
 });
 
 // Clean-up expired interviews
