@@ -3,12 +3,14 @@ const EmailLog = require('../../models/EmailLog');
 const { 
   isNoReply, 
   inferInterviewSubtypeHeuristic, 
-  classifyStatus
+  classifyStatus,
+  shouldCreateEmailLog,
 } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
 const { classifyEmail } = require('../model/model')
 const { ClassificationCache } = require('../cache/databaseCache');
+const { parseInterviewRound } = require('../../utils/interviewRoundParser');
 
 const STATUS_PRIORITY = {
   pending: 0,
@@ -260,18 +262,171 @@ async function processJobEmail(userId, email) {
 
   // Create EmailLog for interview or accepted emails
   if (status === 'interview' || status === 'accepted') {
-    try {
-      await EmailLog.create({
-        userId,
-        messageId: email.id,
-        status,
-        subject: email.subject,
+
+    // Filter out non-actionable emails (e.g. confirmations, reminders)
+    if (!shouldCreateEmailLog(email, status)) {
+      console.log(`[Pipeline] Skipping EmailLog creation for confirmation/reply: ${email.subject?.substring(0, 50)}`);
+      // Skip EmailLog creation entirely, but still return the job result
+      return {
+        id: email.id,
+        subject: email.subject || '(No subject)',
         from: email.sender,
-        date: new Date(email.date),
+        date: email.date,
+        status: job.status,
+        company: job.company,
+        role: job.role,
+        autoReply: job.autoReply,
+        interviewSubtype: job.interviewSubtype,
+        classifiedBy: classification.source,
+      };
+    }
+
+    try {
+      const emailDate = new Date(email.date);
+      
+      // Parse interview round information
+      const { roundNumber, interviewRound } = parseInterviewRound(
+        email.subject, 
+        email.snippet, 
+        email.sender
+      );
+      
+      // STEP 1: Deactivate any newer active interviews for same company/role
+      // This handles the case where a newer email was processed first
+      await EmailLog.updateMany(
+        {
+          userId,
+          company,
+          role: role,
+          status: 'interview',
+          isActive: true,
+          date: { $gt: emailDate } // Newer email exists
+        },
+        {
+          $set: {
+            isActive: false,
+            supersededAt: new Date(),
+            supersededBy: null // Will be updated if we have the new ID
+          }
+        }
+      );
+      
+      // STEP 2: Check if there's already an active interview for this company/role
+      const existingActive = await EmailLog.findOne({
+        userId,
         company,
-        role,
-        interviewSubtype: status === 'interview' ? job.interviewSubtype : undefined,
+        role: role,
+        status: 'interview',
+        isActive: true
       });
+      
+      // STEP 3: Determine if this email should be active
+      let shouldBeActive = true;
+      let supersededById = null;
+      
+      if (existingActive) {
+        if (existingActive.date > emailDate) {
+          // Existing is newer - this email should NOT be active
+          shouldBeActive = false;
+          supersededById = existingActive._id;
+          console.log(`[EmailLog] Keeping existing (${existingActive.date}), marking this (${emailDate}) as inactive`);
+        } else if (existingActive.date < emailDate) {
+          // This email is newer - deactivate the existing one
+          await EmailLog.updateOne(
+            { _id: existingActive._id },
+            {
+              $set: {
+                isActive: false,
+                supersededAt: new Date(),
+                supersededBy: null // Will update after creating new
+              }
+            }
+          );
+          console.log(`[EmailLog] Newer email (${emailDate}), deactivated existing (${existingActive.date})`);
+        } else {
+          // Same date - check if same email
+          if (existingActive.messageId === email.id) {
+            shouldBeActive = false;
+            console.log(`[EmailLog] Duplicate email, skipping`);
+          }
+        }
+      }
+      
+      // STEP 4: Create or update the EmailLog
+      if (shouldBeActive) {
+        const newEmailLog = await EmailLog.findOneAndUpdate(
+          {
+            userId,
+            messageId: email.id
+          },
+          {
+            $set: {
+              userId,
+              messageId: email.id,
+              status,
+              subject: email.subject,
+              from: email.sender,
+              date: emailDate,
+              company,
+              role,
+              interviewSubtype: status === 'interview' ? job.interviewSubtype : undefined,
+              interviewRound,
+              roundNumber,
+              isActive: true,
+              expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              supersededBy: null
+            },
+            $setOnInsert: {
+              createdAt: new Date()
+            }
+          },
+          {
+            upsert: true,
+            new: true
+          }
+        );
+        
+        // Update supersededBy reference for the old one if needed
+        if (supersededById) {
+          await EmailLog.updateOne(
+            { _id: supersededById },
+            { $set: { supersededBy: newEmailLog._id } }
+          );
+        }
+      } else {
+        // Create as inactive (for historical record)
+        await EmailLog.findOneAndUpdate(
+          {
+            userId,
+            messageId: email.id
+          },
+          {
+            $set: {
+              userId,
+              messageId: email.id,
+              status,
+              subject: email.subject,
+              from: email.sender,
+              date: emailDate,
+              company,
+              role,
+              interviewSubtype: status === 'interview' ? job.interviewSubtype : undefined,
+              interviewRound,
+              roundNumber,
+              isActive: false,
+              expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              supersededBy: supersededById
+            },
+            $setOnInsert: {
+              createdAt: new Date()
+            }
+          },
+          {
+            upsert: true
+          }
+        );
+      }
+      
     } catch (err) {
       if (err.code !== 11000) {
         console.error('Error creating EmailLog:', err);

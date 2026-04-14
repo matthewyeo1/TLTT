@@ -20,6 +20,36 @@ const oauth2Client = new google.auth.OAuth2(
     GMAIL_CALLBACK_URL
 );
 
+router.get('/', authMiddleware, async (req, res) => {
+    try {
+        const schedules = await Scheduled.find({
+            userId: req.user.id,
+            status: 'scheduled',
+            'selectedSlot.start': { $exists: true, $ne: null },
+            'selectedSlot.end': { $exists: true, $ne: null },
+        })
+            .sort({ 'selectedSlot.start': 1, createdAt: -1 })
+            .lean();
+
+        res.json({
+            schedules: schedules.map((schedule) => ({
+                _id: schedule._id,
+                emailId: schedule.emailId,
+                company: schedule.company,
+                role: schedule.role,
+                timezone: schedule.timezone,
+                status: schedule.status,
+                selectedSlot: schedule.selectedSlot,
+                calendarEventId: schedule.calendarEventId,
+                createdAt: schedule.createdAt,
+            })),
+        });
+    } catch (err) {
+        console.error('Scheduled events fetch failed:', err);
+        res.status(500).json({ error: 'Failed to fetch scheduled events' });
+    }
+});
+
 router.post('/init', authMiddleware, async (req, res) => {
     try {
         const { emailId, timezone } = req.body;
@@ -200,16 +230,47 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
             expiry_date: user.gmail.expiryDate,
         });
 
+        // Find associated EmailLog
+        const emailLog = await EmailLog.findOne({
+            _id: schedule.emailId,
+            userId: req.user.id
+        });
+
+        if (!emailLog) {
+            console.warn(`EmailLog not found for schedule ${schedule._id}, but continuing...`);
+        }
+
+        // If this email log has an existing calendar event, delete it first (for rescheduling)
+        if (emailLog && emailLog.calendarEventId) {
+            try {
+                const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+                await calendar.events.delete({
+                    calendarId: 'primary',
+                    eventId: emailLog.calendarEventId,
+                });
+                console.log(`Deleted existing calendar event for email log: ${emailLog._id}`);
+            } catch (calendarErr) {
+                console.error('Failed to delete existing calendar event:', calendarErr);
+                // Continue anyway: the event might already be deleted
+            }
+        }
+
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
         const summaryParts = ['Interview'];
         if (schedule.company) summaryParts.push(`with ${schedule.company}`);
         if (schedule.role) summaryParts.push(`for ${schedule.role}`);
 
+        // Add round info if available
+        if (emailLog && emailLog.roundNumber) {
+            const roundText = emailLog.roundNumber === 1 ? 'Initial' : `Round ${emailLog.roundNumber}`;
+            summaryParts.push(`(${roundText})`);
+        }
+
         const event = await calendar.events.insert({
             calendarId: 'primary',
             requestBody: {
                 summary: summaryParts.join(' '),
-                description: `Interview scheduled from email log ${schedule.emailId}.`,
+                description: `Interview scheduled from email: ${schedule.emailId}\nCompany: ${schedule.company || 'N/A'}\nRole: ${schedule.role || 'N/A'}`,
                 start: {
                     dateTime: start,
                     timeZone: timezone,
@@ -221,6 +282,7 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
             },
         });
 
+        // Update schedule
         schedule.selectedSlot = {
             start,
             end,
@@ -228,43 +290,123 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
         schedule.timezone = timezone;
         schedule.calendarEventId = event.data.id;
         schedule.status = 'scheduled';
-
+        
+        // Link back to email log
+        if (emailLog) {
+            schedule.emailLogId = emailLog._id;
+        }
+        
         await schedule.save();
 
-        res.json({ success: true, calendarEventId: event.data.id });
+        // Update EmailLog with calendar event and mark as inactive/processed
+        if (emailLog) {
+            const interviewEnd = new Date(end);
+            
+            emailLog.calendarEventId = event.data.id;
+            emailLog.isActive = false;  // Mark as no longer actionable
+
+            emailLog.scheduling.scheduledAt = new Date();
+            emailLog.scheduling.timezone = timezone;
+            emailLog.scheduling.status = 'scheduled';
+            emailLog.scheduledSlot = {
+                start,
+                end,
+                timezone
+            };
+            emailLog.scheduledEnd = interviewEnd;  // Store when interview ends
+            emailLog.expiresAt = new Date(interviewEnd.getTime() + 24 * 60 * 60 * 1000);  // Expire 1 day after interview
+            
+            await emailLog.save();
+            console.log(`Updated EmailLog ${emailLog._id}: Interview scheduled for ${start}, will expire on ${emailLog.expiresAt}`);
+        }
+
+        // Also update any other active interviews for same company/role to inactive
+        if (emailLog && emailLog.company && emailLog.role) {
+            await EmailLog.updateMany(
+                {
+                    userId: req.user.id,
+                    company: emailLog.company,
+                    role: emailLog.role,
+                    status: 'interview',
+                    isActive: true,
+                    _id: { $ne: emailLog._id }  // Exclude the current one
+                },
+                {
+                    $set: {
+                        isActive: false,
+                        supersededBy: emailLog._id,
+                        supersededAt: new Date()
+                    }
+                }
+            );
+            console.log(`Marked older interviews for ${emailLog.company} - ${emailLog.role} as inactive`);
+        }
+
+        res.json({ 
+            success: true, 
+            calendarEventId: event.data.id,
+            emailLogId: emailLog?._id
+        });
+        
     } catch (err) {
         console.error('Schedule confirmation failed:', err);
         res.status(500).json({ error: 'Failed to confirm schedule' });
     }
 });
 
-router.get('/', authMiddleware, async (req, res) => {
+// Clean-up expired interviews
+router.post('/cleanup-expired', authMiddleware, async (req, res) => {
     try {
-        const schedules = await Scheduled.find({
+        const expiredInterviews = await EmailLog.find({
             userId: req.user.id,
-            status: 'scheduled',
-            'selectedSlot.start': { $exists: true, $ne: null },
-            'selectedSlot.end': { $exists: true, $ne: null },
-        })
-            .sort({ 'selectedSlot.start': 1, createdAt: -1 })
-            .lean();
-
-        res.json({
-            schedules: schedules.map((schedule) => ({
-                _id: schedule._id,
-                emailId: schedule.emailId,
-                company: schedule.company,
-                role: schedule.role,
-                timezone: schedule.timezone,
-                status: schedule.status,
-                selectedSlot: schedule.selectedSlot,
-                calendarEventId: schedule.calendarEventId,
-                createdAt: schedule.createdAt,
-            })),
+            status: 'interview',
+            isActive: true,
+            expiresAt: { $lt: new Date() }
+        });
+        
+        const results = [];
+        
+        for (const interview of expiredInterviews) {
+            // Delete from Google Calendar if exists
+            if (interview.calendarEventId) {
+                try {
+                    const user = await User.findById(req.user.id);
+                    if (user?.gmail?.refreshToken) {
+                        const oauth2Client = new google.auth.OAuth2(
+                            process.env.GOOGLE_CLIENT_ID,
+                            process.env.GOOGLE_CLIENT_SECRET,
+                            GMAIL_CALLBACK_URL
+                        );
+                        oauth2Client.setCredentials({
+                            access_token: user.gmail.accessToken,
+                            refresh_token: user.gmail.refreshToken,
+                        });
+                        
+                        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+                        await calendar.events.delete({
+                            calendarId: 'primary',
+                            eventId: interview.calendarEventId,
+                        });
+                    }
+                } catch (err) {
+                    console.error(`Failed to delete calendar event for ${interview._id}:`, err);
+                }
+            }
+            
+            // Mark as inactive
+            interview.isActive = false;
+            await interview.save();
+            results.push(interview._id);
+        }
+        
+        res.json({ 
+            success: true, 
+            cleanedUp: results.length,
+            ids: results 
         });
     } catch (err) {
-        console.error('Scheduled events fetch failed:', err);
-        res.status(500).json({ error: 'Failed to fetch scheduled events' });
+        console.error('Cleanup failed:', err);
+        res.status(500).json({ error: 'Failed to cleanup expired interviews' });
     }
 });
 

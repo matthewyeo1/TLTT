@@ -11,7 +11,7 @@ const EmailLogSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ["interview", "accepted"], 
+    num: ["interview", "accepted", "scheduled"],
     required: true 
   },
   actionable: { 
@@ -36,9 +36,49 @@ const EmailLogSchema = new mongoose.Schema({
   createdAt: { 
     type: Date, 
     default: Date.now 
+  },
+  interviewRound: {
+    type: String,
+    enum: ['first', 'technical', 'hiring_manager', 'recruiter', 'final', 'unknown'],
+    default: 'unknown'
+  },
+  roundNumber: {
+    type: Number,
+    default: null  // 1, 2, 3, etc.
+  },
+  expiresAt: {
+    type: Date,
+    default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+    index: { expires: 0 } // MongoDB TTL index for auto-deletion
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  calendarEventId: {
+    type: String,
+    default: null
+  },
+  supersededBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EmailLog',
+    default: null
+  },
+  supersededAt: {
+    type: Date,
+    default: null
+  },
+  scheduledSlot: {
+    start: Date,
+    end: Date,
+    timezone: String
+  },
+  scheduledEnd: {
+    type: Date,
+    default: null
   }
 });
 
-EmailLogSchema.index({ userId: 1, messageId: 1 }, { unique: true });
+EmailLogSchema.index( { userId: 1, company: 1, role: 1, roundNumber: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
 
 module.exports = mongoose.model("EmailLog", EmailLogSchema);

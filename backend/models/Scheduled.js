@@ -38,6 +38,12 @@ const ScheduledSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+
+    emailLogId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EmailLog',
+        default: null
+    }
 });
 
 module.exports = mongoose.model('Scheduled', ScheduledSchema);
