@@ -37,6 +37,7 @@ type Email = {
         repliedAt?: string;
         replyMessageId?: string;
     };
+    isScheduled?: boolean;
 };
 
 export default function ActivityScreen() {
@@ -149,14 +150,12 @@ export default function ActivityScreen() {
     };
 
     const statusColor = (s: Email["status"]) =>
-        s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : s === "interview" ? "#17a2b8" : "#ffc107";
+        s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : s === "interview" ? "#1ec1da" : "#ffc107";
 
     const interviewSubtypeMeta = (subtype?: Email["interviewSubtype"]) => {
         switch (subtype) {
             case "online_assessment":
-                return { label: "ONLINE ASSESSMENT", color: "#6f42c1" };
-            case "schedule_interview":
-                return { label: "SCHEDULE INTERVIEW", color: "#0d6efd" };
+                return { label: "ONLINE ASSESSMENT", color: "#6529d4" };
             default:
                 return null;
         }
@@ -164,6 +163,7 @@ export default function ActivityScreen() {
 
     const renderItem = ({ item }: { item: Email }) => {
         const isLoading = loadingEmailId === item.id;
+        const isInterviewScheduled = item.status === "interview" && item.isScheduled === true;
 
         return (
             <Pressable
@@ -201,6 +201,16 @@ export default function ActivityScreen() {
                                 name="mark-email-read"
                                 size={16}
                                 color="#7B61FF"
+                                marginRight={4}
+                                style={{ marginLeft: 6 }}
+                            />
+                        )}
+
+                        {isInterviewScheduled && (
+                            <MaterialIcons
+                                name="event-available"
+                                size={16}
+                                color="#28a745"
                                 marginRight={4}
                                 style={{ marginLeft: 6 }}
                             />

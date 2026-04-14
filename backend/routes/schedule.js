@@ -354,6 +354,67 @@ router.post('/:id/confirm', authMiddleware, async (req, res) => {
     }
 });
 
+// Cancel interview appointment
+router.delete('/:id/cancel', authMiddleware, async (req, res) => {
+  try {
+    const schedule = await Scheduled.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    if (schedule.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user?.gmail?.refreshToken) {
+      return res.status(403).json({ error: 'Google account not connected' });
+    }
+
+    // 1. Delete calendar event if exists
+    if (schedule.calendarEventId) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        GMAIL_CALLBACK_URL
+      );
+      oauth2Client.setCredentials({
+        access_token: user.gmail.accessToken,
+        refresh_token: user.gmail.refreshToken,
+        expiry_date: user.gmail.expiryDate,
+      });
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      await calendar.events.delete({
+        calendarId: 'primary',
+        eventId: schedule.calendarEventId,
+      });
+    }
+
+    // 2. Delete the Scheduled document
+    await schedule.deleteOne();
+
+    // 3. Update the associated EmailLog to 'cancelled' (instead of deleting)
+    const emailLogId = schedule.emailId || schedule.emailLogId;
+    if (emailLogId) {
+      await EmailLog.updateOne(
+        { _id: emailLogId },
+        {
+          $set: {
+            isActive: false,
+            status: 'cancelled',           // add 'cancelled' to enum if needed
+            'scheduling.status': 'cancelled',
+            cancelledAt: new Date()
+          }
+        }
+      );
+    }
+
+    res.json({ success: true, message: 'Interview cancelled successfully' });
+  } catch (err) {
+    console.error('Cancel interview failed:', err);
+    res.status(500).json({ error: 'Failed to cancel interview' });
+  }
+});
+
 // Clean-up expired interviews
 router.post('/cleanup-expired', authMiddleware, async (req, res) => {
     try {

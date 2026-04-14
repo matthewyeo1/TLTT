@@ -5,6 +5,7 @@ const {
   inferInterviewSubtypeHeuristic, 
   classifyStatus,
   shouldCreateEmailLog,
+  isEmailCancelled
 } = require('./classifier');
 const { extractCompany, extractRole, makeKey } = require('./grouper');
 const { queueAutoReply } = require('../mailing/autoReplyQueue');
@@ -263,9 +264,9 @@ async function processJobEmail(userId, email) {
   // Create EmailLog for interview or accepted emails
   if (status === 'interview' || status === 'accepted') {
 
-    // Filter out non-actionable emails (e.g. confirmations, reminders)
-    if (!shouldCreateEmailLog(email, status)) {
-      console.log(`[Pipeline] Skipping EmailLog creation for confirmation/reply: ${email.subject?.substring(0, 50)}`);
+    // Filters 
+    if (!shouldCreateEmailLog(email, status) || await isEmailCancelled(userId, email.id)) {
+      // console.log(`[Pipeline] Skipping EmailLog creation for confirmation/reply: ${email.subject?.substring(0, 50)}`);
       // Skip EmailLog creation entirely, but still return the job result
       return {
         id: email.id,
@@ -280,6 +281,8 @@ async function processJobEmail(userId, email) {
         classifiedBy: classification.source,
       };
     }
+
+    // Filter 2: Check if email was previously cancelled
 
     try {
       const emailDate = new Date(email.date);

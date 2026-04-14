@@ -106,6 +106,7 @@ router.get('/job', authMiddleware, async (req, res) => {
 
         // Step 3: Filter + prepare candidates
         const candidates = [];
+        const candidateIds = [];
 
         for (const msgRes of metadataResponses) {
             if (candidates.length >= 20) break;
@@ -118,6 +119,7 @@ router.get('/job', authMiddleware, async (req, res) => {
 
             if (!isJobRelated(subject, snippet, from, user.email)) continue;
 
+            const messageId = msgRes.data.id;
             candidates.push({
                 id: msgRes.data.id,
                 subject,
@@ -125,12 +127,26 @@ router.get('/job', authMiddleware, async (req, res) => {
                 date,
                 snippet,
             });
+            candidateIds.push(messageId);
         }
+
+        // Batch query EmailLog to find scheduled interviews
+        const scheduledLogs = await EmailLog.find({
+            messageId: { $in: candidateIds },
+            'scheduling.status': 'scheduled'
+        }).lean();
+        const scheduledMessageIds = new Set(scheduledLogs.map(log => log.messageId));
 
         // Step 4: Process pipeline in parallel
         const processed = await Promise.all(
             candidates.map(email =>
                 processJobEmail(req.user.id, email, user.gmail.accessToken)
+                .then(result => {
+                    if (result) {
+                        result.isScheduled = scheduledMessageIds.has(email.id);
+                    }
+                    return result;
+                })
             )
         );
 
