@@ -82,7 +82,7 @@ router.get('/job', authMiddleware, async (req, res) => {
         // Step 1: List messages matching job-related criteria from last 60 days
         const listRes = await gmail.users.messages.list({
             userId: 'me',
-            maxResults: 50,
+            maxResults: 80,
             q: `
         (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
         OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
@@ -101,7 +101,8 @@ router.get('/job', authMiddleware, async (req, res) => {
         }
 
         // Step 2: Fetch & batch-process metadata in parallel, fetch top 20 emails
-        const messageIds = messages.slice(0, 50).map(msg => msg.id);
+        // const messageIds = messages.slice(0, 50).map(msg => msg.id);
+        const messageIds = messages.map(msg => msg.id);
         const metadataResponses = await fetchMessagesInBatches(gmail, messageIds);
 
         // Step 3: Filter + prepare candidates

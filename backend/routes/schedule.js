@@ -95,27 +95,8 @@ router.post('/init', authMiddleware, async (req, res) => {
             status: { $in: ['pending', 'scheduled'] },
         });
 
+        // Return existing schedule if found
         if (schedule) {
-            // If exists, delete any calendar event if it was scheduled
-            if (schedule.calendarEventId && schedule.status === 'scheduled') {
-                try {
-                    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-                    await calendar.events.delete({
-                        calendarId: 'primary',
-                        eventId: schedule.calendarEventId,
-                    });
-                } catch (calendarErr) {
-                    console.error('Failed to delete previous calendar event:', calendarErr);
-                }
-            }
-
-            // Reset the existing schedule instead of creating new
-            schedule.status = 'pending';
-            schedule.calendarEventId = undefined;
-            schedule.selectedSlot = undefined;
-            schedule.timezone = timezone;
-            await schedule.save();
-
             return res.status(200).json({ _id: schedule._id, isExisting: true });
         }
 
