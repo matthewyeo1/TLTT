@@ -49,10 +49,11 @@ export default function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availability, setAvailability] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+  const [slotDuration, setSlotDuration] = useState<number>(30);   // default to 30 mins
 
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const fetchAvailability = async (date: string) => {
+  const fetchAvailability = async (date: string, duration: number) => {
     console.log("fetchAvailability called for date:", date);
     console.log("Using id:", id);
     if (!id) return;
@@ -62,10 +63,11 @@ export default function ScheduleScreen() {
     setSelectedSlot(null);
 
     const start = DateTime.fromISO(date, { zone: timezone })
-      .set({ hour: 9 })
+      .set({ hour: 0, minute: 0, second: 0, millisecond: 0 })
       .toISO();
     const end = DateTime.fromISO(date, { zone: timezone })
-      .set({ hour: 17 })
+      .plus({ days: 1 })
+      .set({ hour: 0, minute: 0, second: 0, millisecond: 0 })
       .toISO();
 
     try {
@@ -77,7 +79,7 @@ export default function ScheduleScreen() {
       }
 
       const res = await fetch(
-        `${FETCH_CALENDAR_AVAILABILITY_URL}/${id}/availability?start=${start}&end=${end}&timezone=${timezone}`,
+        `${FETCH_CALENDAR_AVAILABILITY_URL}/${id}/availability?start=${start}&end=${end}&timezone=${timezone}&duration=${duration}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -165,21 +167,40 @@ export default function ScheduleScreen() {
     }
   };
 
+  // Re-fetch availability when the duration changes
+  const handleDurationChange = (duration: number) => {
+    setSlotDuration(duration);
+
+    if (selectedDate) {
+      fetchAvailability(selectedDate, duration);
+    }
+  };
+
   // Render each time slot
   const renderSlot = ({ item }: any) => {
     const isSelected = selectedSlot?.start === item.start;
+    const start = DateTime.fromISO(item.start).toFormat("hh:mm a");
+    const end = DateTime.fromISO(item.end).toFormat("hh:mm a");
+    
     return (
       <Pressable
         style={[styles.slot, isSelected && styles.slotSelected]}
         onPress={() => setSelectedSlot(item)}
       >
         <Text style={styles.slotText}>
-          {DateTime.fromISO(item.start).toFormat("hh:mm a")} –{" "}
-          {DateTime.fromISO(item.end).toFormat("hh:mm a")}
+          {start} – {end} ({Math.round((new Date(item.end).getTime() - new Date(item.start).getTime()) / (1000 * 60))} min)
         </Text>
       </Pressable>
     );
   };
+
+  // Duration options
+  const durationOptions = [
+    { label: "30 min", value: 30 },
+    { label: "1 hour", value: 60 },
+    { label: "1.5 hours", value: 90 },
+    { label: "2 hours", value: 120 }
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -187,10 +208,35 @@ export default function ScheduleScreen() {
         <Text style={styles.header}>Schedule Interview</Text>
         <Text style={styles.subheader}>Timezone: {timezone}</Text>
 
+        <View style={styles.durationContainer}>
+          <Text style={styles.durationLabel}>Slot Duration:</Text>
+          <View style={styles.durationOptions}>
+            {durationOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.durationButton,
+                  slotDuration === option.value && styles.durationButtonActive,
+                ]}
+                onPress={() => handleDurationChange(option.value)}
+              >
+                <Text
+                  style={[
+                    styles.durationButtonText,
+                    slotDuration === option.value && styles.durationButtonTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <Calendar
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
-            fetchAvailability(day.dateString);
+            fetchAvailability(day.dateString, slotDuration);
           }}
           markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
           style={{ marginBottom: 12 }}
@@ -304,5 +350,44 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+  },
+  durationContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: "#111",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  durationLabel: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  durationOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  durationButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#222",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  durationButtonActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  durationButtonText: {
+    color: "#aaa",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  durationButtonTextActive: {
+    color: "#fff",
   },
 });

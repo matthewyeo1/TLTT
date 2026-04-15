@@ -119,7 +119,8 @@ router.post('/init', authMiddleware, async (req, res) => {
 
 router.get('/:id/availability', authMiddleware, async (req, res) => {
     try {
-        const { start, end, timezone } = req.query;
+        const { start, end, timezone, duration } = req.query;
+        const slotDuration = duration ? parseInt(duration) : 30;
 
         const schedule = await Scheduled.findById(req.params.id);
         if (!schedule) {
@@ -162,7 +163,7 @@ router.get('/:id/availability', authMiddleware, async (req, res) => {
             busyTimes,
             start,
             end,
-            30,
+            slotDuration,
             timezone
         );
 

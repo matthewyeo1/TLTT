@@ -4,16 +4,20 @@ function computeAvailability(busyTimes, startDate, endDate, duration, timeZone) 
     const slots = [];
     let current = DateTime.fromISO(startDate, { zone: timeZone });
     const end = DateTime.fromISO(endDate, { zone: timeZone });
+    
+    // Convert busy times to DateTime objects once
+    const busyIntervals = busyTimes.map(busy => ({
+        start: DateTime.fromISO(busy.start, { zone: timeZone }),
+        end: DateTime.fromISO(busy.end, { zone: timeZone })
+    }));
 
     while (current.plus({ minutes: duration }) <= end) {
         const slotEnd = current.plus({ minutes: duration });
         let isAvailable = true;
 
-        for (const busyTime of busyTimes) {
-            const busyStart = DateTime.fromISO(busyTime.start, { zone: timeZone });
-            const busyEnd = DateTime.fromISO(busyTime.end, { zone: timeZone });
-
-            if (current < busyEnd && slotEnd > busyStart) {
+        for (const busy of busyIntervals) {
+            // Check if slot overlaps with busy period
+            if (current < busy.end && slotEnd > busy.start) {
                 isAvailable = false;
                 break;
             }
@@ -29,6 +33,7 @@ function computeAvailability(busyTimes, startDate, endDate, duration, timeZone) 
         current = slotEnd;
     }
 
+    console.log(`[computeAvailability] Generated ${slots.length} slots of ${duration} minutes each`);
     return slots;
 }
 

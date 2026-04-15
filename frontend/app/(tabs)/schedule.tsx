@@ -24,6 +24,7 @@ export default function SchedulingPicker({ scheduleId }: Props) {
     const [availability, setAvailability] = useState<any[]>([]);
     const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
     const [confirmed, setConfirmed] = useState(false);
+    const [slotDuration, setSlotDuration] = useState<number>(30);
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -45,12 +46,18 @@ export default function SchedulingPicker({ scheduleId }: Props) {
         setAvailability([]);
         setSelectedSlot(null);
 
-        const start = DateTime.fromISO(date, { zone: timezone }).set({ hour: 9 }).toISO();
-        const end = DateTime.fromISO(date, { zone: timezone }).set({ hour: 17 }).toISO();
+        // 24/7 availability for the selected date in user's timezone
+        const start = DateTime.fromISO(date, { zone: timezone })
+            .set({ hour: 0, minute: 0 })  
+            .toISO();
+        const end = DateTime.fromISO(date, { zone: timezone })
+            .plus({ days: 1 })
+            .set({ hour: 0, minute: 0 })  
+            .toISO();
 
         try {
             const res = await fetch(
-                `/schedule/${scheduleId}/availability?start=${start}&end=${end}&timezone=${timezone}`,
+                `/schedule/${scheduleId}/availability?start=${start}&end=${end}&timezone=${timezone}&duration=${slotDuration}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (!res.ok) throw new Error(`Failed to fetch availability: ${res.status}`);
