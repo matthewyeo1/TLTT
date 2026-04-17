@@ -23,6 +23,28 @@ function isApplicationConfirmation(text) {
   );
 }
 
+function isAssessmentInvitation(text) {
+  return (
+    text.includes('coding challenge') ||
+    text.includes('assessment') ||
+    text.includes('hackerrank') ||
+    text.includes('kattis') ||
+    text.includes('take at your convenience') ||
+    text.includes('online assessment')
+  );
+}
+
+function isTakeHomeCodingTask(text) {
+  return (
+    text.includes('coding problem') ||    
+    text.includes('coding task') ||
+    text.includes('take-home assignment') ||
+    text.includes('take home coding') ||
+    text.includes('coding exercise') ||
+    text.includes('coding assignment')
+  );
+}
+
 async function isEmailCancelled(userId, messageId) {
   const EmailLog = require('../../models/EmailLog');
   const cancelled = await EmailLog.findOne({
@@ -168,6 +190,14 @@ function classifyStatus(email) {
     return 'pending';
   }
 
+  if (isAssessmentInvitation(text)) {
+    return 'online_assessment';
+  }
+
+  if (isTakeHomeCodingTask(text)) {
+    return 'coding_task';
+  }
+
   if (
     text.includes('unfortunately') ||
     text.includes('regret to inform') ||
@@ -221,7 +251,7 @@ function shouldCreateEmailLog(email, status) {
   }
   
   // Only create EmailLog for actionable statuses
-  const actionableStatuses = ['interview', 'accepted'];
+  const actionableStatuses = ['interview', 'accepted', 'online_assessment', 'coding_task'];
   if (!actionableStatuses.includes(status)) {
     console.log(`[Filter] Skipping non-actionable status (${status}): ${email.subject?.substring(0, 50)}`);
     return false;
@@ -235,6 +265,8 @@ module.exports = {
   inferInterviewSubtypeHeuristic, 
   classifyStatus,
   isConfirmationOrReply,
+  isAssessmentInvitation,
+  isTakeHomeCodingTask,
   isReminderEmail,
   isFollowUpConfirmation,
   shouldCreateEmailLog,

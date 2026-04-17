@@ -17,7 +17,7 @@ type Logs = {
   _id: string;
   company: string;
   role: string;
-  status: "interview" | "accepted";
+  status: "interview" | "accepted" | "online_assessment" | "coding_task";
   interviewSubtype?: "online_assessment" | "schedule_interview" | "unspecified";
   updatedAt: string;
   scheduling?: {

@@ -29,7 +29,7 @@ type Email = {
     from: string;
     subject: string;
     date: string;
-    status: "pending" | "accepted" | "rejected" | "interview";
+    status: "pending" | "accepted" | "rejected" | "interview" | "online_assessment" | "coding_task";
     interviewSubtype?: "online_assessment" | "schedule_interview" | "unspecified";
     autoReply?: {
         eligible: boolean;
@@ -150,32 +150,36 @@ export default function ActivityScreen() {
     };
 
     const statusColor = (s: Email["status"]) =>
-        s === "accepted" ? "#28a745" : s === "rejected" ? "#dc3545" : s === "interview" ? "#1ec1da" : "#ffc107";
-
-    const interviewSubtypeMeta = (subtype?: Email["interviewSubtype"]) => {
-        switch (subtype) {
-            case "online_assessment":
-                return { label: "ONLINE ASSESSMENT", color: "#6529d4" };
-            default:
-                return null;
-        }
-    };
+        s === "accepted" ? "#28a745" :
+            s === "rejected" ? "#dc3545" :
+                s === "interview" ? "#1ec1da" :
+                    s === "online_assessment" ? "#6529d4" :
+                        s === "coding_task" ? "#fd7e14" : "#ffc107";
 
     const renderItem = ({ item }: { item: Email }) => {
         const isLoading = loadingEmailId === item.id;
         const isInterviewScheduled = item.status === "interview" && item.isScheduled === true;
 
+        // Get display text for status
+        const getStatusDisplay = (status: Email["status"]) => {
+            switch (status) {
+                case "online_assessment": return "ONLINE ASSESSMENT";
+                case "coding_task": return "CODING TASK";
+                default: return (status ?? "pending").toUpperCase();
+            }
+        };
+
         return (
             <Pressable
                 onPress={async () => {
-                    setLoadingEmailId(item.id); 
+                    setLoadingEmailId(item.id);
                     try {
                         router.push({
                             pathname: "/email/[id]",
                             params: { id: item.id },
                         });
                     } finally {
-                        setLoadingEmailId(null); 
+                        setLoadingEmailId(null);
                     }
                 }}
                 style={({ pressed }) => [
@@ -216,6 +220,7 @@ export default function ActivityScreen() {
                             />
                         )}
 
+                        {/* Main status badge */}
                         <View
                             style={[
                                 styles.badge,
@@ -223,26 +228,25 @@ export default function ActivityScreen() {
                             ]}
                         >
                             <Text style={styles.badgeText}>
-                                {(item.status ?? "pending").toUpperCase()}
+                                {getStatusDisplay(item.status)}
                             </Text>
                         </View>
 
-                        {item.status === "interview" &&
-                            interviewSubtypeMeta(item.interviewSubtype) && (
-                                <View
-                                    style={[
-                                        styles.badge,
-                                        {
-                                            backgroundColor:
-                                                interviewSubtypeMeta(item.interviewSubtype)!.color,
-                                        },
-                                    ]}
-                                >
-                                    <Text style={styles.badgeText}>
-                                        {interviewSubtypeMeta(item.interviewSubtype)!.label}
-                                    </Text>
-                                </View>
-                            )}
+                        {/* For interview status, also show subtype if available */}
+                        {item.status === "interview" && item.interviewSubtype && (
+                            <View
+                                style={[
+                                    styles.badge,
+                                    { backgroundColor: "#0d6efd" },
+                                ]}
+                            >
+                                <Text style={styles.badgeText}>
+                                    {item.interviewSubtype === "schedule_interview" ? "SCHEDULE" :
+                                        item.interviewSubtype === "online_assessment" ? "ASSESSMENT" :
+                                            item.interviewSubtype.toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 

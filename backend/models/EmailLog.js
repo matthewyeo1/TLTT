@@ -11,7 +11,7 @@ const EmailLogSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ["interview", "accepted", "scheduled", "cancelled"],
+    enum: ["interview", "accepted", "scheduled", "cancelled", "online_assessment", "coding_task"],
     required: true 
   },
   actionable: { 

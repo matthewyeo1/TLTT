@@ -28,7 +28,7 @@ const JobApplicationSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ['pending', 'rejected', 'accepted', 'interview'],
+            enum: ['pending', 'rejected', 'accepted', 'interview', 'online assessment', 'coding_task'],
             default: 'pending',
         },
 

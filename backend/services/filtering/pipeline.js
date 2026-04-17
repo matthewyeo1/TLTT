@@ -15,9 +15,11 @@ const { parseInterviewRound } = require('../../utils/interviewRoundParser');
 
 const STATUS_PRIORITY = {
   pending: 0,
-  interview: 1,
-  rejected: 2,
-  accepted: 3,
+  online_assessment: 1,
+  coding_task: 1,
+  interview: 2,
+  rejected: 3,
+  accepted: 4,
 };
 
 // Instantiate in-memory cache with 60 minute TTL
@@ -262,7 +264,7 @@ async function processJobEmail(userId, email) {
   }
 
   // Create EmailLog for interview or accepted emails
-  if (status === 'interview' || status === 'accepted') {
+  if (status === 'interview' || status === 'accepted' || status === 'online_assessment' || status === 'coding_task') {
 
     // Filters 
     if (!shouldCreateEmailLog(email, status) || await isEmailCancelled(userId, email.id)) {

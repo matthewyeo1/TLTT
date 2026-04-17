@@ -84,7 +84,8 @@ router.get('/job', authMiddleware, async (req, res) => {
             userId: 'me',
             maxResults: 80,
             q: `
-        (subject:(application OR interview OR offer OR rejection OR unfortunately OR update)
+        (subject:(application OR interview OR offer OR rejection OR unfortunately 
+        OR update OR coding OR assessment OR "take home" OR "coding challenge")
         OR from:(@indeed.com OR @glassdoor.com OR @lever.co OR @greenhouse.io))
         -from:jobalerts-noreply@linkedin.com
         -subject:"linkedin job alerts"

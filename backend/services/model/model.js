@@ -35,6 +35,8 @@ async function classifyEmail({ subject, snippet, sender }) {
     - rejected (they said no)
     - interview (they want to schedule an interview)  
     - accepted (they made an offer)
+    - online_assessment (they want you to take an online test)
+    - coding_task (they gave you a coding problem to write a program for)
     - pending (none of the above)
     
     Also extract company name (from sender or content) and role (from subject).
@@ -43,11 +45,8 @@ async function classifyEmail({ subject, snippet, sender }) {
     Email snippet: ${snippet}
     Sender: ${sender}
     
-    Return ONLY valid JSON. Do NOT wrap in markdown code blocks. Do NOT add any text outside the JSON.
-    Do NOT include phrases like "Here's the JSON" or any explanations.
-    Just return the raw JSON object.
-    
-    Example: {"status": "rejected", "company": "Google", "role": "Software Engineer"}
+    Return ONLY valid JSON. Do NOT wrap in markdown code blocks.
+    Example: {"status": "online_assessment", "company": "Google", "role": "Software Engineer"}
   `;
 
   try {
@@ -63,7 +62,7 @@ async function classifyEmail({ subject, snippet, sender }) {
     // Remove markdown code blocks if present
     responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     
-    // NEW: Try to extract JSON from text that might have explanatory prefixes
+    // Try to extract JSON from text that might have explanatory prefixes
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       responseText = jsonMatch[0];
@@ -72,8 +71,8 @@ async function classifyEmail({ subject, snippet, sender }) {
     // Parse JSON
     const result = JSON.parse(responseText);
     
-    // Validate the response structure
-    const validStatuses = ['pending', 'rejected', 'accepted', 'interview'];
+    // FIX: Add the new statuses to the valid list
+    const validStatuses = ['pending', 'rejected', 'accepted', 'interview', 'online_assessment', 'coding_task'];
     if (!result.status || !validStatuses.includes(result.status)) {
       throw new Error(`Invalid status: ${result.status}`);
     }
